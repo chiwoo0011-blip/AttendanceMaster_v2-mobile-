@@ -1,0 +1,574 @@
+/* ===================================
+   출근부 프리미엄 v3.0 - Mobile-First 디자인 시스템
+   =================================== */
+
+/* 1. CSS 변수 (디자인 토큰) */
+:root {
+    /* 색상 */
+    --primary-color: #4CAF50;
+    --primary-dark: #388E3C;
+    --primary-light: #C8E6C9;
+    --secondary-color: #2196F3;
+    --danger-color: #f44336;
+    --warning-color: #FF9800;
+    --success-color: #4CAF50;
+    --info-color: #2196F3;
+
+    /* 텍스트 */
+    --text-primary: #212121;
+    --text-secondary: #757575;
+    --text-disabled: #BDBDBD;
+    --text-white: #FFFFFF;
+
+    /* 배경 */
+    --bg-primary: #FAFAFA;
+    --bg-secondary: #FFFFFF;
+    --bg-dark: #212121;
+
+    /* 그림자 */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.2);
+
+    /* 간격 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* 테두리 */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* 폰트 크기 */
+    --font-xs: 12px;
+    --font-sm: 14px;
+    --font-md: 16px;
+    --font-lg: 18px;
+    --font-xl: 20px;
+    --font-2xl: 24px;
+    --font-3xl: 32px;
+}
+
+/* 2. 리셋 및 기본 스타일 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-size: clamp(14px, 4vw, 16px);
+    line-height: 1.6;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+}
+
+/* 3. 레이아웃 */
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-md);
+}
+
+.container-fluid {
+    width: 100%;
+    padding: var(--spacing-md);
+}
+
+/* Edge-to-Edge (모바일 최적화) */
+.edge-to-edge {
+    padding: 0;
+    margin: 0;
+}
+
+/* 4. 그리드 시스템 */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: calc(var(--spacing-md) * -0.5);
+}
+
+.col {
+    flex: 1;
+    padding: calc(var(--spacing-md) * 0.5);
+}
+
+.col-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding: calc(var(--spacing-md) * 0.5);
+}
+
+.col-12 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding: calc(var(--spacing-md) * 0.5);
+}
+
+/* 5. 카드 UI */
+.card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.card-header {
+    font-size: var(--font-lg);
+    font-weight: 600;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-primary);
+}
+
+.card-body {
+    color: var(--text-secondary);
+}
+
+/* 6. 버튼 */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px 24px;
+    font-size: var(--font-md);
+    font-weight: 500;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: var(--text-white);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-white);
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: var(--text-white);
+}
+
+.btn-outline {
+    background-color: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-block {
+    width: 100%;
+    display: flex;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 7. 입력 필드 */
+.form-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.form-label {
+    display: block;
+    margin-bottom: var(--spacing-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.form-control {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: var(--font-md);
+    border: 2px solid #E0E0E0;
+    border-radius: var(--radius-md);
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.form-control::placeholder {
+    color: var(--text-disabled);
+}
+
+textarea.form-control {
+    min-height: 120px;
+    resize: vertical;
+}
+
+/* 8. 헤더 */
+.header {
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-sm);
+    padding: var(--spacing-md);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-title {
+    font-size: var(--font-2xl);
+    font-weight: 700;
+    text-align: center;
+    color: var(--primary-color);
+}
+
+.logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto;
+    display: block;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 9. 공지사항 */
+.notice {
+    background: var(--primary-light);
+    border-left: 4px solid var(--primary-color);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-md);
+}
+
+.notice-title {
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+    color: var(--primary-dark);
+}
+
+/* 10. 달력 */
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg-secondary);
+    border: 2px solid transparent;
+}
+
+.calendar-day:hover {
+    background: var(--primary-light);
+}
+
+.calendar-day.selected {
+    background: var(--primary-color);
+    color: var(--text-white);
+    font-weight: 600;
+}
+
+.calendar-day.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.calendar-day.weekend {
+    color: var(--danger-color);
+}
+
+.calendar-day.holiday {
+    background: var(--danger-color);
+    color: var(--text-white);
+}
+
+/* 11. 서명 패드 */
+.signature-pad {
+    width: 100%;
+    height: 200px;
+    border: 2px dashed var(--primary-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+/* 12. 테이블 */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--spacing-md) 0;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.table th,
+.table td {
+    padding: var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.table th {
+    background: var(--primary-light);
+    font-weight: 600;
+    color: var(--primary-dark);
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+.table tr:hover {
+    background: var(--bg-primary);
+}
+
+/* 13. 배지 */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    font-size: var(--font-xs);
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    background: var(--danger-color);
+    color: var(--text-white);
+}
+
+/* 14. 알림 메시지 */
+.alert {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.alert-success {
+    background: var(--success-color);
+    color: var(--text-white);
+}
+
+.alert-danger {
+    background: var(--danger-color);
+    color: var(--text-white);
+}
+
+.alert-warning {
+    background: var(--warning-color);
+    color: var(--text-white);
+}
+
+.alert-info {
+    background: var(--info-color);
+    color: var(--text-white);
+}
+
+/* 15. 로딩 스피너 */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--primary-light);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: var(--spacing-lg) auto;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 16. 유틸리티 클래스 */
+.text-center {
+    text-align: center;
+}
+
+.text-left {
+    text-align: left;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.mt-1 {
+    margin-top: var(--spacing-sm);
+}
+
+.mt-2 {
+    margin-top: var(--spacing-md);
+}
+
+.mt-3 {
+    margin-top: var(--spacing-lg);
+}
+
+.mb-1 {
+    margin-bottom: var(--spacing-sm);
+}
+
+.mb-2 {
+    margin-bottom: var(--spacing-md);
+}
+
+.mb-3 {
+    margin-bottom: var(--spacing-lg);
+}
+
+.p-1 {
+    padding: var(--spacing-sm);
+}
+
+.p-2 {
+    padding: var(--spacing-md);
+}
+
+.p-3 {
+    padding: var(--spacing-lg);
+}
+
+.d-none {
+    display: none;
+}
+
+.d-block {
+    display: block;
+}
+
+.d-flex {
+    display: flex;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.flex-center {
+    align-items: center;
+    justify-content: center;
+}
+
+.flex-between {
+    justify-content: space-between;
+}
+
+.gap-1 {
+    gap: var(--spacing-sm);
+}
+
+.gap-2 {
+    gap: var(--spacing-md);
+}
+
+.gap-3 {
+    gap: var(--spacing-lg);
+}
+
+/* 17. 반응형 (태블릿 이상) */
+@media (min-width: 768px) {
+    .container {
+        padding: var(--spacing-lg);
+    }
+
+    .card {
+        padding: var(--spacing-xl);
+    }
+
+    .calendar {
+        gap: var(--spacing-md);
+    }
+}
+
+/* 18. 반응형 (데스크탑) */
+@media (min-width: 1024px) {
+    body {
+        font-size: 16px;
+    }
+
+    .btn {
+        min-height: 44px;
+    }
+
+    .form-control {
+        min-height: 44px;
+    }
+}
+
+/* 19. 다크 모드 지원 (선택사항) */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --text-primary: #E0E0E0;
+        --text-secondary: #BDBDBD;
+        --bg-primary: #121212;
+        --bg-secondary: #1E1E1E;
+    }
+}
+
+/* 20. 인쇄 스타일 */
+@media print {
+
+    .btn,
+    .header,
+    .notice {
+        display: none;
+    }
+
+    body {
+        background: white;
+        color: black;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+}

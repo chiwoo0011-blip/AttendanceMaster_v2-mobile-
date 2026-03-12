@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <!-- 카카오톡 등 인앱 브라우저 캐시 강제 무력화 -->
+    <script>
+    (function() {
+        var url = new URL(window.location.href);
+        var t = url.searchParams.get('t');
+        // 타임스탬프가 없거나 1시간(3600초) 이상 지난 경우 새로고침
+        if (!t || (Date.now() - parseInt(t)) > 3600000) {
+            url.searchParams.set('t', Date.now());
+            window.location.replace(url.href);
+        }
+    })();
+    </script>
+
+    <title>출근 확인 - 근태관리 시스템</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="출근앱">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3652/3652191.png">
+
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Worker Calendar Styles */
+        .w-calendar-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+
+        .w-calendar-grid {
+            display: grid !important;
+            grid-template-columns: repeat(7, 1fr) !important;
+            gap: 4px !important;
+            text-align: center;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        .w-header-day {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
+        }
+
+        .w-day {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            font-size: clamp(0.8rem, 2.5vw, 1.1rem);
+            font-weight: 700;
+            cursor: pointer;
+            position: relative;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .w-day.selected {
+            background: var(--primary) !important;
+            color: white !important;
+        }
+
+        .w-disabled-day {
+            background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0, rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 6px) !important;
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+        }
+
+        .w-day.sun {
+            color: #ff5f5f;
+        }
+
+        .w-day.sat {
+            color: #5fafff;
+        }
+
+        .holiday-name-small {
+            font-size: clamp(0.45rem, 1.5vw, 0.6rem);
+            color: #ff5f5f;
+            line-height: 1;
+            margin-top: 2px;
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="mobile-container">
+        <header class="fade-in">
+            <h1>출근 확인 <span style="font-size: 0.5em;">v3.0</span></h1>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">근무형태와 방학 기간이 자동 반영됩니다.</p>
+
+            <!-- 공지사항 영역 -->
+            <div id="noticeContainer" style="margin-bottom: 2rem;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; margin-left: 4px;">
+                    <i data-lucide="megaphone" style="width: 18px; color: var(--secondary);"></i>
+                    <span style="font-size: 0.9rem; font-weight: 800; color: var(--secondary);">공지사항</span>
+                </div>
+                <div id="noticeDisplayArea" class="glass"
+                    style="padding: 1.2rem; border-left: 5px solid var(--secondary); background: rgba(var(--secondary-rgb), 0.1); min-height: 60px;">
+                    <div id="noticeContent"
+                        style="font-size: 0.95rem; font-weight: 600; line-height: 1.5; color: var(--text); white-space: pre-wrap;">
+                    </div>
+                    <div id="noticeEmptyMsg"
+                        style="color: var(--text-muted); font-size: 0.9rem; font-style: italic; display: none;">
+                        등록된 공지사항이 없습니다.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 개인 알림 영역 -->
+            <div id="personalNotificationsContainer" style="margin-bottom: 2rem; display: none;">
+                <div
+                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; margin-left: 4px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="bell" style="width: 18px; color: var(--primary);"></i>
+                        <span style="font-size: 0.9rem; font-weight: 800; color: var(--primary);">내 알림</span>
+                        <span id="unreadBadge"
+                            style="display: none; background: #ef4444; color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;"></span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button onclick="deleteAllNotificationsUI()"
+                            style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+                            모두 삭제
+                        </button>
+                        <button onclick="toggleNotifications()"
+                            style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem;">
+                            <span id="toggleNotificationsText">펼치기</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="notificationsList" style="display: none;">
+                    <!-- 알림 목록이 동적으로 생성됩니다 -->
+                </div>
+            </div>
+        </header>
+
+        <main class="glass fade-in" style="padding: 1.5rem;">
+            <!-- 1. 성명 입력 및 정보 카드 표시 -->
+            <div class="input-group" id="loginSection">
+                <label for="workerName">정보 입력</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <div style="flex: 7; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <input type="text" id="workerName" placeholder="성명"
+                            onkeydown="if(event.key === 'Enter') document.getElementById('workerPhoneBack').focus()">
+                        <input type="text" id="workerPhoneBack" placeholder="휴대폰 뒷 4자리" maxlength="4"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                            onkeydown="if(event.key === 'Enter') fetchWorkerInfo()">
+                    </div>
+                    <button class="btn btn-primary" onclick="fetchWorkerInfo()"
+                        style="flex: 3; white-space: nowrap; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="search"></i> 조회
+                    </button>
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.85rem; color: var(--text-muted);">
+                        <input type="checkbox" id="rememberMe" style="width: 16px; height: 16px; accent-color: var(--primary);">
+                        이 기기에서 기억하기
+                    </label>
+                    <div style="text-align: right; margin-top: 0.4rem;">
+                        <span style="font-size: 0.85rem; color: var(--text-muted);">아직 등록되지 않으셨나요? </span>
+                        <a href="#" onclick="openRegisterModal()"
+                            style="font-size: 0.85rem; color: var(--primary); font-weight: 600; text-decoration: underline;">신규 등록 신청</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 기억하기로 로그인된 상태 -->
+            <div class="input-group" id="loggedInSection" style="display: none;">
+                <div style="padding: 0.8rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="user-check" style="width: 20px; color: #4ade80;"></i>
+                            <span style="font-weight: 700; font-size: 1.05rem; color: var(--text);"><span id="loggedInName"></span>님</span>
+                        </div>
+                        <button onclick="logoutWorker()" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; background: none; border: 1px solid #ef4444; color: #ef4444; border-radius: 6px; cursor: pointer;">
+                            <i data-lucide="log-out" style="width: 14px;"></i> 로그아웃
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button onclick="refreshWorkerInfo()" class="btn btn-primary" style="flex: 1; padding: 0.5rem; font-size: 0.85rem;">
+                            <i data-lucide="refresh-cw" style="width: 14px;"></i> 새로고침
+                        </button>
+                        <button onclick="switchUser()" class="btn btn-secondary" style="flex: 1; padding: 0.5rem; font-size: 0.85rem;">
+                            <i data-lucide="users" style="width: 14px;"></i> 다른 사람
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 근무형태 카드 (공통 영역) -->
+            <div id="workerInfoArea"></div>
+
+            <!-- 출근 입력 버튼 -->
+            <button class="btn btn-primary" id="toggleAttendanceBtn" onclick="toggleAttendanceSection()"
+                style="width: 100%; margin-top: 1.5rem; height: 55px; font-size: 1.1rem; font-weight: 800; display: none;">
+                <i data-lucide="calendar-plus"></i> 출근 입력하기
+            </button>
+
+            <!-- 출근 입력 섹션 (기본 숨김) -->
+            <div id="attendanceSection" style="display: none;">
+
+                <!-- 2. 월 선택 -->
+                <div class="input-group">
+                    <label for="workMonth">근무 월 선택</label>
+                    <input type="month" id="workMonth" onchange="renderWorkerCalendar()">
+                </div>
+
+                <!-- 3. 일괄 선택 버튼 -->
+                <div class="bulk-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="selectWeekdays()" style="flex: 1;">
+                        <i data-lucide="check-square"></i> 근무일 전체 선택
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="clearSelection()" style="flex: 1;">
+                        <i data-lucide="rotate-ccw"></i> 초기화
+                    </button>
+                </div>
+
+                <!-- 4. 달력 영역 -->
+                <div class="w-calendar-container">
+                    <div id="w_calendar_grid_v1_7" class="w-calendar-grid">
+                        <!-- 요일 헤더와 날짜가 생성됨 -->
+                    </div>
+                </div>
+
+                <p id="selectedCount"
+                    style="font-size: 0.9rem; color: var(--primary); font-weight: 700; text-align: right;">
+                    선택된 날짜: 0일
+                </p>
+
+                <div class="input-group" style="margin-top: 1.5rem;">
+                    <label>서명란</label>
+                    <div style="position: relative;">
+                        <canvas id="signaturePad" class="signature-pad"
+                            style="border: 1px solid var(--border); background: white; border-radius: 8px; width: 100%; height: 180px;"></canvas>
+                        <button class="btn btn-secondary" id="clearBtn"
+                            style="position: absolute; bottom: 10px; right: 10px; padding: 0.5rem; font-size: 0.75rem;">
+                            <i data-lucide="eraser"></i> 지우기
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="submitBtn"
+                    style="width: 100%; margin-top: 1.5rem; height: 55px; font-size: 1.1rem; font-weight: 800;">
+                    <i data-lucide="send"></i> 출근 기록 전송 및 승인 요청
+                </button>
+            </div>
+
+            <!-- 소리 알림 설정 -->
+            <div
+                style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px dotted #ccc; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">알림 소리 사용</span>
+                <button id="soundToggleBtn" class="btn btn-secondary btn-sm" onclick="toggleSoundSetting()"
+                    style="display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.8rem; border-radius: 20px;">
+                    <i data-lucide="volume-2" style="width: 14px;"></i> <span>On</span>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Firebase SDK for FCM -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+    <script>
+        // TODO: Firebase Console > Project Settings > General > Your apps 에서 값을 복사하세요
+        if (!firebase.apps.length) {
+            firebase.initializeApp({
+                apiKey: "AIzaSyCOQ0VF_4piElLF_oHOi7IFmNaOCI_25iA",
+                authDomain: "yrs-workingdaycheck.firebaseapp.com",
+                databaseURL: "https://yrs-workingdaycheck-default-rtdb.firebaseio.com/",
+                projectId: "yrs-workingdaycheck",
+                storageBucket: "yrs-workingdaycheck.appspot.com",
+                messagingSenderId: "20187121102",
+                appId: "1:20187121102:web:6cee6c6145e232bf1a579f"
+            });
+        }
+    </script>
+
+    <script src="app.js?v=5"></script>
+    <script>
+        lucide.createIcons();
+        const monthInput = document.getElementById('workMonth');
+        const now = new Date();
+        monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        // 초기화
+        window.addEventListener('load', async () => {
+            if (SERVER_CONFIG.useServer) {
+                await AttendanceDB.syncSettingsWithServer();
+                await AttendanceDB.syncWorkersWithServer(); // 직원 명단 서버 동기화
+                await HolidayUtil.init(); // 휴일 데이터 로드
+            }
+            renderNotice();
+            monthInput.value = new Date().toISOString().slice(0, 7);
+            updateSoundUI();
+            lucide.createIcons();
+
+            // PWA Service Worker: 이전 캐시 강제 삭제 후 재등록
+            if ('serviceWorker' in navigator) {
+                try {
+                    // 이전 캐시 모두 삭제
+                    const cacheNames = await caches.keys();
+                    await Promise.all(cacheNames.map(name => caches.delete(name)));
+
+                    // 새 Service Worker 등록 (네트워크 우선 전략)
+                    const reg = await navigator.serviceWorker.register('/service-worker.js');
+                    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    console.log('Service Worker registered (network-first)');
+                } catch (error) {
+                    console.error('Service Worker registration failed:', error);
+                }
+            }
+
+            // Firebase Cloud Messaging 초기화
+            initializeFirebaseMessaging();
+
+            // 기억하기 자동 조회
+            const saved = localStorage.getItem('remembered_worker');
+            if (saved) {
+                try {
+                    const { name, phoneBack } = JSON.parse(saved);
+                    if (name && phoneBack) {
+                        document.getElementById('workerName').value = name;
+                        document.getElementById('workerPhoneBack').value = phoneBack;
+                        document.getElementById('rememberMe').checked = true;
+                        await fetchWorkerInfo();
+                    }
+                } catch (e) {
+                    localStorage.removeItem('remembered_worker');
+                }
+            }
+
+            // 5분마다 자동 동기화 (공지, 휴일, 알림)
+            setInterval(async () => {
+                if (!SERVER_CONFIG.useServer) return;
+                try {
+                    await AttendanceDB.syncSettingsWithServer();
+                    renderNotice();
+                    await HolidayUtil.init();
+                    const workerName = document.getElementById('workerName').value.trim();
+                    if (workerName) {
+                        await loadNotifications(workerName);
+                    }
+                } catch (e) {
+                    console.error('자동 동기화 실패:', e);
+                }
+            }, 5 * 60 * 1000);
+        });
+
+        // 새로고침: 저장된 정보로 서버 재조회
+        async function refreshWorkerInfo() {
+            if (SERVER_CONFIG.useServer) {
+                await AttendanceDB.syncSettingsWithServer();
+                await AttendanceDB.syncWorkersWithServer();
+                await HolidayUtil.init();
+            }
+            renderNotice();
+            await fetchWorkerInfo();
+            lucide.createIcons();
+        }
+
+        // 다른 사람으로 전환: 입력 화면 표시 (기억 유지)
+        function switchUser() {
+            document.getElementById('loggedInSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('workerName').value = '';
+            document.getElementById('workerPhoneBack').value = '';
+            document.getElementById('workerInfoArea').innerHTML = '';
+            document.getElementById('toggleAttendanceBtn').style.display = 'none';
+            document.getElementById('personalNotificationsContainer').style.display = 'none';
+            document.getElementById('rememberMe').checked = false;
+            currentWorkerRule = null;
+        }
+
+        // 로그아웃: 기억 삭제 + 입력 화면
+        function logoutWorker() {
+            localStorage.removeItem('remembered_worker');
+            switchUser();
+        }
+
+        // 공지사항 렌더링
+        function renderNotice() {
+            const notice = AttendanceDB.getNotice();
+            const noticeContainer = document.getElementById('noticeContainer');
+            const content = document.getElementById('noticeContent');
+
+            if (notice && notice.trim().length > 0) {
+                noticeContainer.style.display = 'block';
+                content.innerHTML = notice.replace(/\n/g, '<br>');
+            } else {
+                noticeContainer.style.display = 'block';
+                content.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">공지가 있으면 알려드립니다.</span>';
+            }
+        }
+
+        let currentWorkerRule = null;
+        let selectedDates = new Set();
+
+        // 출근 입력 섹션 토글
+        function toggleAttendanceSection() {
+            const section = document.getElementById('attendanceSection');
+            const btn = document.getElementById('toggleAttendanceBtn');
+
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                btn.innerHTML = '<i data-lucide="chevron-up"></i> 출근 입력 닫기';
+                lucide.createIcons();
+                setTimeout(() => {
+                    resizeCanvas();
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            } else {
+                section.style.display = 'none';
+                btn.innerHTML = '<i data-lucide="calendar-plus"></i> 출근 입력하기';
+                lucide.createIcons();
+            }
+        }
+
+        async function fetchWorkerInfo() {
+            const name = document.getElementById('workerName').value.trim();
+            const phoneBack = document.getElementById('workerPhoneBack').value.trim();
+            const infoArea = document.getElementById('workerInfoArea');
+
+            if (!name) {
+                AudioUtil.playError();
+                alert('성명을 입력해주세요.');
+                return;
+            }
+            if (!phoneBack || phoneBack.length < 4) {
+                AudioUtil.playError();
+                alert('휴대폰 번호 뒷 4자리를 정확히 입력해주세요.');
+                return;
+            }
+
+            // 디버깅: 등록된 인원 확인
+            const allWorkers = AttendanceDB.getWorkers();
+            console.log('등록된 전체 인원:', allWorkers);
+            console.log('조회 시도:', { name, phoneBack });
+
+            const worker = AttendanceDB.findWorker(name, phoneBack);
+
+            if (!worker) {
+                AudioUtil.playError();
+                const workerCount = allWorkers.length;
+                infoArea.innerHTML = `
+                    <p style="color: var(--danger); font-size: 0.9rem; margin-top: 0.5rem;">
+                        <strong>'${name}'님의 정보를 찾을 수 없습니다.</strong><br>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">
+                            • 성명과 전화번호 뒷 4자리를 확인해주세요.<br>
+                            • 현재 등록된 인원: ${workerCount}명<br>
+                            • 관리자에게 등록 여부를 문의하세요.
+                        </span>
+                    </p>`;
+                currentWorkerRule = null;
+            } else {
+                AudioUtil.playInfo();
+                currentWorkerRule = {
+                    workDays: worker.workDays,
+                    contractStartDate: worker.contractStartDate,
+                    contractEndDate: worker.contractEndDate,
+                    workTime: worker.workTime,
+                    endTime: worker.endTime,
+                    workType: worker.workType || '상시근무'
+                };
+
+                const dayMap = ['일', '월', '화', '수', '목', '금', '토'];
+                let daysText = '평일 전체';
+                if (currentWorkerRule.workDays && currentWorkerRule.workDays.length > 0) {
+                    daysText = currentWorkerRule.workDays.map(d => dayMap[d]).join(', ');
+                }
+
+                let hoursText = '';
+                if (currentWorkerRule.workTime && currentWorkerRule.endTime) {
+                    const [sh, sm] = currentWorkerRule.workTime.split(':').map(Number);
+                    const [eh, em] = currentWorkerRule.endTime.split(':').map(Number);
+                    let diff = (eh * 60 + em) - (sh * 60 + sm);
+                    if (diff < 0) diff += 1440;
+                    const h = Math.floor(diff / 60);
+                    const m = diff % 60;
+                    hoursText = `${h}시간${m > 0 ? ' ' + m + '분' : ''}`;
+                }
+
+                const isRegular = (currentWorkerRule.workType === '상시(방학비근무)' || currentWorkerRule.workType === '상시근무');
+
+                infoArea.innerHTML = `
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-top: 1rem; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border);">
+                            <span style="font-weight: 700; font-size: 1.1rem; color: #818cf8;">${worker.name}</span>
+                            <span style="font-size: 0.9rem; color: var(--text-muted);">님 확인되었습니다.</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 0.8rem;">
+                             <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                <div style="color: #a78bfa;"><i data-lucide="briefcase" style="width: 18px;"></i></div>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;">근무 형태</span>
+                                    <span style="font-size: 0.95rem; font-weight: 700; color: #a78bfa;">${currentWorkerRule.workType}</span>
+                                </div>
+                            </div>
+                            ${!isRegular ? `
+                            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                <div style="color: #818cf8;"><i data-lucide="calendar-check" style="width: 18px;"></i></div>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;">근무 계약 기간</span>
+                                    <span style="font-size: 0.95rem; font-weight: 700;">${currentWorkerRule.contractStartDate || '--'} ~ ${currentWorkerRule.contractEndDate || '--'}</span>
+                                    <span style="font-size: 0.8rem; color: #94a3b8;">매주: ${daysText}</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                <div style="color: #4ade80;"><i data-lucide="clock" style="width: 18px;"></i></div>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600;">하루 근무 시간</span>
+                                    <span style="font-size: 0.95rem; font-weight: 700;">${currentWorkerRule.workTime || '--'} ~ ${currentWorkerRule.endTime || '--'} (${hoursText})</span>
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+                document.getElementById('toggleAttendanceBtn').style.display = 'block';
+
+                // FCM 토큰이 있으면 이 직원 이름으로 서버에 저장
+                if (window.__fcmToken) {
+                    AttendanceDB.saveFCMToken(worker.name, window.__fcmToken);
+                }
+                // 개인 알림 로드
+                loadNotifications(worker.name);
+
+                // 기억하기 처리
+                if (document.getElementById('rememberMe').checked) {
+                    localStorage.setItem('remembered_worker', JSON.stringify({ name, phoneBack }));
+                }
+
+                // 조회 성공 시 버튼 영역 표시
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('loggedInSection').style.display = 'block';
+                document.getElementById('loggedInName').textContent = worker.name;
+            }
+
+            // 최신 휴일 데이터 동기화 후 달력 렌더링
+            if (SERVER_CONFIG.useServer) {
+                await HolidayUtil.init();
+            }
+            renderWorkerCalendar();
+        }
+
+        function renderWorkerCalendar() {
+            const grid = document.getElementById('w_calendar_grid_v1_7');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+            selectedDates.clear();
+            updateCount();
+
+            const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+            weekDays.forEach(wd => {
+                const head = document.createElement('div');
+                head.className = 'w-header-day';
+                head.innerText = wd;
+                grid.appendChild(head);
+            });
+
+            const [year, month] = monthInput.value.split('-').map(Number);
+            const firstDayIndex = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            const v = AttendanceDB.getVacations();
+
+            function isInVacation(dateStr) {
+                if (v.sStart && v.sEnd && dateStr >= v.sStart && dateStr <= v.sEnd) return true;
+                if (v.wStart && v.wEnd && dateStr >= v.wStart && dateStr <= v.wEnd) return true;
+                if (v.pStart && v.pEnd && dateStr >= v.pStart && dateStr <= v.pEnd) return true;
+                return false;
+            }
+
+            for (let i = 0; i < firstDayIndex; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const day = document.createElement('div');
+                day.className = 'w-day';
+                day.innerHTML = `<span>${i}</span>`;
+
+                const dateStr = `${monthInput.value}-${String(i).padStart(2, '0')}`;
+                const dayOfWeek = (firstDayIndex + i - 1) % 7;
+
+                if (dayOfWeek === 0) day.classList.add('sun');
+                if (dayOfWeek === 6) day.classList.add('sat');
+
+                let holidayName = HolidayUtil.getHolidayName(dateStr);
+                if (holidayName) {
+                    day.classList.add('sun');
+                    day.innerHTML += `<div class="holiday-name-small">${holidayName}</div>`;
+                }
+
+                const wt = currentWorkerRule ? currentWorkerRule.workType : '상시근무';
+                let isVac = isInVacation(dateStr);
+                const workingDays = AttendanceDB.getVacationWorkingDays();
+                const isVacWorkingDay = workingDays.includes(dateStr);
+                const isPermanent = (wt === '상시(방학비근무)' || wt === '상시근무');
+
+                let isWorkable = (dayOfWeek >= 1 && dayOfWeek <= 5);
+                if (currentWorkerRule && currentWorkerRule.workDays && currentWorkerRule.workDays.length > 0) {
+                    isWorkable = currentWorkerRule.workDays.map(Number).includes(dayOfWeek);
+                }
+
+                if (currentWorkerRule && !isPermanent) {
+                    if (currentWorkerRule.contractStartDate && dateStr < currentWorkerRule.contractStartDate) isWorkable = false;
+                    if (currentWorkerRule.contractEndDate && dateStr > currentWorkerRule.contractEndDate) isWorkable = false;
+                }
+
+                if (wt === '기간근무' || wt === '상시(방학비근무)') {
+                    if (isVac) isWorkable = false;
+                } else if (wt === '방학중근무') {
+                    if (!isVac) isWorkable = false;
+                }
+
+                if (isVacWorkingDay) isWorkable = true;
+                if (holidayName) isWorkable = false;
+
+                if (!isWorkable) {
+                    day.classList.add('w-disabled-day');
+                } else {
+                    if (isVacWorkingDay) {
+                        day.style.border = '2px solid var(--primary)';
+                    }
+                    day.onclick = () => {
+                        if (selectedDates.has(dateStr)) {
+                            selectedDates.delete(dateStr);
+                            day.classList.remove('selected');
+                        } else {
+                            selectedDates.add(dateStr);
+                            day.classList.add('selected');
+                        }
+                        updateCount();
+                    };
+                }
+                grid.appendChild(day);
+            }
+        }
+
+        function selectWeekdays() {
+            document.querySelectorAll('.w-day:not(.w-disabled-day)').forEach(day => {
+                if (day.innerText === '') return;
+                const d = day.querySelector('span').innerText;
+                const dateStr = `${monthInput.value}-${String(d).padStart(2, '0')}`;
+                selectedDates.add(dateStr);
+                day.classList.add('selected');
+            });
+            updateCount();
+        }
+
+        function clearSelection() {
+            selectedDates.clear();
+            document.querySelectorAll('.w-day').forEach(d => d.classList.remove('selected'));
+            updateCount();
+        }
+
+        function updateCount() {
+            document.getElementById('selectedCount').innerText = `선택된 날짜: ${selectedDates.size}일`;
+        }
+
+        // Signature Pad
+        const canvas = document.getElementById('signaturePad');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawing(e) {
+            painting = true;
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function stopDrawing() {
+            painting = false;
+        }
+
+        function draw(e) {
+            if (!painting) return;
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', stopDrawing);
+
+        // Touch Events (passive: false 가 모바일 브라우저에서 핵심)
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.target === canvas) {
+                e.preventDefault();
+                startDrawing(e);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.target === canvas) {
+                e.preventDefault();
+                draw(e);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', stopDrawing, { passive: false });
+
+        document.getElementById('clearBtn').onclick = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        document.getElementById('submitBtn').onclick = async () => {
+            if (selectedDates.size === 0) {
+                AudioUtil.playError();
+                return alert('날짜를 선택해주세요.');
+            }
+            const name = document.getElementById('workerName').value.trim();
+            if (!name) {
+                AudioUtil.playError();
+                return alert('성명을 입력하세요.');
+            }
+
+            const month = document.getElementById('workMonth').value;
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerText = '검증 중...';
+
+            const validation = await AttendanceDB.validateSubmission(name, month);
+            if (!validation.valid) {
+                AudioUtil.playError();
+                alert(validation.message);
+                btn.disabled = false;
+                btn.innerText = '출근 기록 전송 및 승인 요청';
+                return;
+            }
+
+            btn.innerText = '전송 중...';
+
+            const records = [];
+            for (const date of selectedDates) {
+                const compressedSig = await ImageUtil.compressSignature(canvas.toDataURL());
+                records.push({ id: Date.now() + Math.random(), name, date, signature: compressedSig, timestamp: new Date().toISOString() });
+            }
+
+            await AttendanceDB.saveBulk(records);
+            AudioUtil.playSuccess();
+            alert('전송완료!\n작성해주셔서 감사합니다');
+            location.reload();
+        };
+
+        // 소리 알림 토글
+        function updateSoundUI() {
+            const enabled = AttendanceDB.getSoundEnabled();
+            const btn = document.getElementById('soundToggleBtn');
+            if (!btn) return;
+
+            if (enabled) {
+                btn.classList.replace('btn-secondary', 'btn-primary');
+                btn.innerHTML = `<i data-lucide="volume-2" style="width: 14px;"></i> <span>On</span>`;
+                btn.style.background = 'var(--primary)';
+            } else {
+                btn.classList.replace('btn-primary', 'btn-secondary');
+                btn.innerHTML = `<i data-lucide="volume-x" style="width: 14px;"></i> <span>Off</span>`;
+                btn.style.background = '';
+            }
+            lucide.createIcons();
+        }
+
+        function toggleSoundSetting() {
+            const current = AttendanceDB.getSoundEnabled();
+            const newVal = !current;
+            AttendanceDB.saveSoundEnabled(newVal);
+            updateSoundUI();
+            if (newVal) {
+                AudioUtil.playSuccess();
+            }
+        }
+
+        renderWorkerCalendar();
+    </script>
+
+    <!-- 신규 등록 신청 모달 -->
+    <div id="registerModal" class="modal-overlay" onclick="closeRegisterModal(event)">
+        <div class="glass modal-content" onclick="event.stopPropagation()">
+            <h2 style="margin-bottom: 1.5rem; text-align: center;">신규 인원 등록 신청</h2>
+            <p style="text-align: center; color: var(--text-muted); margin-bottom: 2rem; font-size: 0.9rem;">
+                관리자 확인 후 정식 등록됩니다.<br>승인 완료 시 출근부 작성이 가능합니다.
+            </p>
+            <div class="input-group">
+                <label>성명</label>
+                <input type="text" id="regName" placeholder="실명을 입력하세요">
+            </div>
+            <div class="input-group">
+                <label>생년월일 (6자리)</label>
+                <input type="text" id="regBirth" placeholder="예: 800101" maxlength="6"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
+            <div class="input-group">
+                <label>휴대폰 번호</label>
+                <input type="text" id="regPhone" placeholder="010-0000-0000"
+                    oninput="this.value = this.value.replace(/[^0-9-]/g, '')">
+            </div>
+            <button class="btn btn-primary" onclick="submitRegistration()"
+                style="width: 100%; margin-top: 1rem; padding: 1rem;">
+                신청하기
+            </button>
+            <button class="btn btn-secondary" onclick="closeRegisterModal()" style="width: 100%; margin-top: 0.5rem;">
+                취소
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function openRegisterModal() {
+            document.getElementById('registerModal').style.display = 'flex';
+            document.getElementById('regName').value = document.getElementById('workerName').value || '';
+            document.getElementById('regBirth').value = '';
+            document.getElementById('regPhone').value = '';
+        }
+
+        function closeRegisterModal(e) {
+            if (e && e.target !== e.currentTarget) return;
+            document.getElementById('registerModal').style.display = 'none';
+        }
+
+        async function submitRegistration() {
+            const name = document.getElementById('regName').value.trim();
+            const birth = document.getElementById('regBirth').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+
+            if (!name) return alert('성명을 입력하세요.');
+            if (birth.length !== 6) return alert('생년월일 6자리를 정확히 입력하세요.');
+            if (!phone) return alert('휴대폰 번호를 입력하세요.');
+
+            if (!confirm(`${name}님, 등록을 신청하시겠습니까?\n(관리자 승인 후 이용 가능합니다)`)) return;
+
+            try {
+                // 서버와 동기화하여 최신 대기 명단 확인 (거절된 신청이 있을 수 있음)
+                if (SERVER_CONFIG.useServer) {
+                    await AttendanceDB.syncPendingWithServer();
+                }
+
+                await AttendanceDB.savePendingWorker({
+                    name: name,
+                    birth: birth,
+                    phone: phone,
+                    requestedAt: new Date().toISOString()
+                });
+                AudioUtil.playSuccess();
+                alert('신청이 완료되었습니다.\n관리자 승인을 기다려주세요.');
+                closeRegisterModal();
+            } catch (e) {
+                console.error(e);
+                AudioUtil.playError();
+                alert(e.message || '신청 중 오류가 발생했습니다.');
+            }
+        }
+
+        // Firebase Cloud Messaging 초기화
+        async function initializeFirebaseMessaging() {
+            if (typeof firebase === 'undefined' || !firebase.apps.length) {
+                console.log('Firebase not initialized yet');
+                return;
+            }
+
+            try {
+                const messaging = firebase.messaging();
+
+                // FCM 전용 서비스워커 명시적 등록
+                const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+                // 알림 권한 요청
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    console.log('Notification permission granted');
+
+                    // FCM 토큰 가져오기
+                    // TODO: Firebase Console > Cloud Messaging > Web Push certificates 에서 VAPID Key를 복사하세요
+                    const currentToken = await messaging.getToken({
+                        vapidKey: 'BDxcmFoYTEEEJXLVHfdQNiLvfxfSeFajBAB-dIyfpDJ4CV7e7d1RZ6ELZ88_pA29RdUs4elNsw80EomNA2lduQA',
+                        serviceWorkerRegistration: swRegistration
+                    });
+
+                    if (currentToken) {
+                        console.log('FCM Token obtained');
+                        // 토큰을 메모리에 보관 (직원 조회 시 DB에 저장)
+                        window.__fcmToken = currentToken;
+                    }
+                } else {
+                    console.log('Notification permission denied');
+                }
+
+                // 포그라운드 메시지 수신
+                messaging.onMessage((payload) => {
+                    console.log('Message received:', payload);
+                    const notificationTitle = payload.notification.title || '새 알림';
+                    const notificationOptions = {
+                        body: payload.notification.body || '',
+                        icon: '/icon-192.png'
+                    };
+
+                    new Notification(notificationTitle, notificationOptions);
+                    AudioUtil.playInfo();
+
+                    // 알림 목록 갱신
+                    const workerName = document.getElementById('workerName').value.trim();
+                    if (workerName) loadNotifications(workerName);
+                });
+
+            } catch (error) {
+                console.error('FCM initialization error:', error);
+            }
+        }
+
+        // 알림 목록 로드
+        async function loadNotifications(workerName) {
+            if (!workerName || !SERVER_CONFIG.useServer) return;
+
+            try {
+                const notifications = await AttendanceDB.getNotifications(workerName);
+                if (notifications.length > 0) {
+                    renderNotifications(notifications, workerName);
+                    document.getElementById('personalNotificationsContainer').style.display = 'block';
+                } else {
+                    document.getElementById('personalNotificationsContainer').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Load notifications error:', error);
+            }
+        }
+
+        // 알림 렌더링
+        function renderNotifications(notifications, workerName) {
+            const list = document.getElementById('notificationsList');
+            const unreadCount = notifications.filter(n => !n.read).length;
+
+            const badge = document.getElementById('unreadBadge');
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            list.innerHTML = notifications.map(notification => {
+                const date = new Date(notification.timestamp);
+                const timeStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                const readClass = notification.read ? 'opacity: 0.6;' : '';
+
+                return `
+                    <div class="glass" style="padding: 1rem; margin-bottom: 0.75rem; border-left: 3px solid var(--primary); ${readClass}" onclick="markAsRead('${workerName}', '${notification.id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                            <div style="font-weight: 700; font-size: 1rem;">${notification.title}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">${timeStr}</div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.4;">${notification.body}</div>
+                        ${!notification.read ? '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--primary);">● 읽지 않음</div>' : ''}
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // 알림 토글
+        function toggleNotifications() {
+            const list = document.getElementById('notificationsList');
+            const text = document.getElementById('toggleNotificationsText');
+
+            if (list.style.display === 'none') {
+                list.style.display = 'block';
+                text.textContent = '접기';
+            } else {
+                list.style.display = 'none';
+                text.textContent = '펼치기';
+            }
+        }
+
+        // 읽음 처리
+        async function markAsRead(workerName, notificationId) {
+            try {
+                await AttendanceDB.markNotificationAsRead(workerName, notificationId);
+                await loadNotifications(workerName);
+            } catch (error) {
+                console.error('Mark as read error:', error);
+            }
+        }
+
+        // 모든 알림 삭제
+        async function deleteAllNotificationsUI() {
+            const workerName = document.getElementById('workerName').value.trim();
+            if (!workerName) {
+                AudioUtil.playError();
+                alert('직원 정보를 먼저 조회해주세요.');
+                return;
+            }
+
+            if (!confirm('모든 알림을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+
+            try {
+                await AttendanceDB.deleteAllNotifications(workerName);
+                AudioUtil.playSuccess();
+                document.getElementById('personalNotificationsContainer').style.display = 'none';
+                alert('모든 알림이 삭제되었습니다.');
+            } catch (error) {
+                console.error('Delete all notifications error:', error);
+                AudioUtil.playError();
+                alert('알림 삭제 중 오류가 발생했습니다.');
+            }
+        }
+    </script>
+</body>
+
+</html>

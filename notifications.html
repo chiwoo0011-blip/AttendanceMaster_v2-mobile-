@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>알림 관리 - 근태관리 시스템</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .notification-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .worker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .worker-card {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .worker-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .worker-card.selected {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.1);
+        }
+
+        .worker-checkbox {
+            display: none;
+        }
+
+        .worker-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .worker-info {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .select-all-btn {
+            margin-bottom: 1rem;
+        }
+
+        .message-form {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .selected-count {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .history-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .history-title {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .history-time {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .history-recipients {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="notification-container">
+        <header class="fade-in">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+                <a href="admin.html?tab=workerView" style="color: var(--text-muted); text-decoration: none;">
+                    <i data-lucide="arrow-left"></i>
+                </a>
+                <h1>알림 관리 <span style="font-size: 0.5em;">v1.0</span></h1>
+            </div>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">직원들에게 개별 또는 그룹 알림을 전송할 수 있습니다.</p>
+        </header>
+
+        <main class="glass fade-in" style="padding: 2rem;">
+            <!-- 직원 선택 섹션 -->
+            <section>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">수신자 선택 <span class="selected-count" id="selectedCount">0명</span></h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="selectAll()">
+                            <i data-lucide="check-square"></i> 전체 선택
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="clearSelection()">
+                            <i data-lucide="x-square"></i> 선택 해제
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 검색 바 -->
+                <div style="margin-bottom: 1.5rem; position: relative;">
+                    <input type="text" id="searchInput"
+                        placeholder="🔍 이름 또는 전화번호로 검색..."
+                        oninput="filterWorkers()"
+                        style="width: 100%; padding: 0.75rem 3rem 0.75rem 1rem; border: 2px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                    <button onclick="clearSearch()"
+                        style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.5rem;">
+                        <i data-lucide="x" style="width: 18px;"></i>
+                    </button>
+                </div>
+
+                <div style="margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem;">
+                    <span id="filterInfo">전체 인원 표시</span>
+                </div>
+
+                <div class="worker-grid" id="workerGrid">
+                    <!-- 직원 카드가 동적으로 생성됩니다 -->
+                </div>
+            </section>
+
+            <!-- 메시지 작성 섹션 -->
+            <section class="message-form">
+                <h2 style="margin-bottom: 1.5rem;">알림 메시지 작성</h2>
+
+                <div class="form-group">
+                    <label for="notificationTitle">제목</label>
+                    <input type="text" id="notificationTitle" placeholder="예: 급여 지급 안내" maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="notificationBody">내용</label>
+                    <textarea id="notificationBody" placeholder="알림 내용을 입력하세요..."></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="sendNotifications()"
+                    style="width: 100%; height: 55px; font-size: 1.1rem; font-weight: 800;">
+                    <i data-lucide="send"></i> 알림 전송
+                </button>
+            </section>
+
+            <!-- 전송 히스토리 -->
+            <section style="margin-top: 3rem;">
+                <h2 style="margin-bottom: 1.5rem;">전송 히스토리</h2>
+                <div id="historyList">
+                    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">전송 내역이 없습니다.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js?v=5"></script>
+    <script>
+        lucide.createIcons();
+
+        let selectedWorkers = new Set();
+        let notificationHistory = JSON.parse(localStorage.getItem('notification_history') || '[]');
+
+        // 페이지 로드 시 직원 목록 렌더링
+        window.addEventListener('load', async () => {
+            if (SERVER_CONFIG.useServer) {
+                await AttendanceDB.syncWorkersWithServer();
+            }
+            renderWorkers();
+            renderHistory();
+            lucide.createIcons();
+        });
+
+        // 직원 목록 렌더링
+        function renderWorkers(filteredWorkers = null) {
+            const workers = filteredWorkers || AttendanceDB.getWorkers();
+            const grid = document.getElementById('workerGrid');
+
+            if (workers.length === 0) {
+                const searchTerm = document.getElementById('searchInput').value.trim();
+                if (searchTerm) {
+                    grid.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem; grid-column: 1 / -1;">검색 결과가 없습니다.</p>';
+                } else {
+                    grid.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem; grid-column: 1 / -1;">등록된 직원이 없습니다.</p>';
+                }
+                return;
+            }
+
+            grid.innerHTML = workers.map(worker => {
+                const isSelected = selectedWorkers.has(worker.name);
+                return `
+                    <div class="worker-card ${isSelected ? 'selected' : ''}" onclick="toggleWorker('${worker.name}')" id="card-${worker.name}">
+                        <div class="worker-name">
+                            <i data-lucide="user" style="width: 16px; display: inline;"></i>
+                            ${worker.name}
+                        </div>
+                        <div class="worker-info">${worker.workType || '상시근무'}</div>
+                        <div class="worker-info" style="font-size: 0.75rem;">${worker.phone || ''}</div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // 직원 검색 필터링
+        function filterWorkers() {
+            const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
+            const allWorkers = AttendanceDB.getWorkers();
+
+            if (!searchTerm) {
+                renderWorkers();
+                document.getElementById('filterInfo').innerText = `전체 인원 표시 (${allWorkers.length}명)`;
+                return;
+            }
+
+            const filtered = allWorkers.filter(worker => {
+                const nameMatch = worker.name.toLowerCase().includes(searchTerm);
+                const phoneMatch = worker.phone && worker.phone.includes(searchTerm);
+                return nameMatch || phoneMatch;
+            });
+
+            renderWorkers(filtered);
+            document.getElementById('filterInfo').innerText = `검색 결과: ${filtered.length}명 / 전체 ${allWorkers.length}명`;
+        }
+
+        // 검색 초기화
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterWorkers();
+            lucide.createIcons();
+        }
+
+        // 직원 선택 토글
+        function toggleWorker(name) {
+            const card = document.getElementById(`card-${name}`);
+            if (selectedWorkers.has(name)) {
+                selectedWorkers.delete(name);
+                card.classList.remove('selected');
+            } else {
+                selectedWorkers.add(name);
+                card.classList.add('selected');
+            }
+            updateSelectedCount();
+        }
+
+        // 전체 선택
+        function selectAll() {
+            const workers = AttendanceDB.getWorkers();
+            selectedWorkers.clear();
+            workers.forEach(worker => {
+                selectedWorkers.add(worker.name);
+                const card = document.getElementById(`card-${worker.name}`);
+                if (card) card.classList.add('selected');
+            });
+            updateSelectedCount();
+        }
+
+        // 선택 해제
+        function clearSelection() {
+            selectedWorkers.clear();
+            document.querySelectorAll('.worker-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            updateSelectedCount();
+        }
+
+        // 선택된 직원 수 업데이트
+        function updateSelectedCount() {
+            document.getElementById('selectedCount').innerText = `${selectedWorkers.size}명`;
+        }
+
+        // 알림 전송
+        async function sendNotifications() {
+            const title = document.getElementById('notificationTitle').value.trim();
+            const body = document.getElementById('notificationBody').value.trim();
+
+            if (selectedWorkers.size === 0) {
+                AudioUtil.playError();
+                return alert('수신자를 선택해주세요.');
+            }
+
+            if (!title) {
+                AudioUtil.playError();
+                return alert('제목을 입력해주세요.');
+            }
+
+            if (!body) {
+                AudioUtil.playError();
+                return alert('내용을 입력해주세요.');
+            }
+
+            if (!confirm(`${selectedWorkers.size}명에게 알림을 전송하시겠습니까?`)) {
+                return;
+            }
+
+            const notification = {
+                title: title,
+                body: body
+            };
+
+            try {
+                // Firebase에 알림 저장
+                for (const workerName of selectedWorkers) {
+                    await AttendanceDB.saveNotification(workerName, notification);
+                }
+
+                // FCM 푸시 알림 발송 (Vercel API)
+                try {
+                    const pushRes = await fetch('/api/send-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: title,
+                            body: body,
+                            workerNames: Array.from(selectedWorkers)
+                        })
+                    });
+                    const pushResult = await pushRes.json();
+                    console.log('FCM push result:', pushResult);
+                } catch (pushErr) {
+                    console.error('FCM push error:', pushErr);
+                }
+
+                // 히스토리 저장
+                const historyItem = {
+                    id: Date.now(),
+                    title: title,
+                    body: body,
+                    recipients: Array.from(selectedWorkers),
+                    timestamp: new Date().toISOString()
+                };
+                notificationHistory.unshift(historyItem);
+                if (notificationHistory.length > 50) notificationHistory = notificationHistory.slice(0, 50);
+                localStorage.setItem('notification_history', JSON.stringify(notificationHistory));
+
+                AudioUtil.playSuccess();
+                alert(`알림이 ${selectedWorkers.size}명에게 전송되었습니다!`);
+
+                // 폼 초기화
+                document.getElementById('notificationTitle').value = '';
+                document.getElementById('notificationBody').value = '';
+                clearSelection();
+                renderHistory();
+
+            } catch (error) {
+                console.error('Notification send error:', error);
+                AudioUtil.playError();
+                alert('알림 전송 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 히스토리 렌더링
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+
+            if (notificationHistory.length === 0) {
+                historyList.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">전송 내역이 없습니다.</p>';
+                return;
+            }
+
+            historyList.innerHTML = notificationHistory.map(item => {
+                const date = new Date(item.timestamp);
+                const timeStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+                return `
+                    <div class="history-item">
+                        <div class="history-header">
+                            <div class="history-title">${item.title}</div>
+                            <div class="history-time">${timeStr}</div>
+                        </div>
+                        <div style="color: var(--text-muted); font-size: 0.9rem;">${item.body}</div>
+                        <div class="history-recipients">
+                            <i data-lucide="users" style="width: 14px; display: inline;"></i>
+                            ${item.recipients.join(', ')} (${item.recipients.length}명)
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+    </script>
+</body>
+
+</html>

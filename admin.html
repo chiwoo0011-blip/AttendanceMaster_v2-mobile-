@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>관리자 대시보드 v3.0 - 근태관리 시스템</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="app.js?v=5"></script>
+    <style>
+        .nav-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        .nav-link {
+            padding: 0.5rem 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            cursor: pointer;
+            border-radius: 0.5rem;
+        }
+
+        .nav-link.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        /* Login Screen Styles */
+        #loginScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 3rem;
+            text-align: center;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .brand-logo {
+            width: 64px;
+            height: 64px;
+            background: var(--primary);
+            color: white;
+            border-radius: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
+        }
+
+        .brand-name {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, var(--primary), #818cf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-input-group {
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 2px solid var(--border);
+            border-radius: 1rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.8);
+            color: #1f2937;
+            font-family: sans-serif;
+        }
+
+        .login-input:focus {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #adminContent {
+            display: none;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 0.5rem;
+        }
+
+        #mainLogoArea img,
+        #loginLogoArea img {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen">
+        <div class="glass login-card">
+            <div class="brand-logo" id="loginLogoArea">
+                <i data-lucide="shield-check" style="width: 32px; height: 32px;"></i>
+            </div>
+            <div class="brand-name" id="loginAppTitle"></div>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">관리자 인증</p>
+
+            <div class="login-input-group">
+                <input type="password" id="adminPasswordInput" class="login-input" placeholder="비밀번호를 입력하세요"
+                    autocomplete="current-password" onkeyup="if(event.key==='Enter') checkAdminLogin()">
+                <button class="btn btn-primary" onclick="checkAdminLogin()" style="width: 100%; padding: 1rem;">
+                    대시보드 접속하기
+                </button>
+            </div>
+
+            <p id="loginError" style="color: var(--danger); font-size: 0.85rem; margin-top: 1rem; display: none;">비밀번호가
+                일치하지 않습니다.</p>
+        </div>
+    </div>
+
+    <script>
+        function checkAdminLogin() {
+            const password = document.getElementById('adminPasswordInput').value;
+            const savedPassword = AttendanceDB.getPassword();
+
+            if (password === savedPassword) {
+                sessionStorage.setItem('admin_authenticated', 'true');
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminContent').style.display = 'block';
+                refreshAppTitles();
+                lucide.createIcons();
+                if (typeof renderAggregatedTable === 'function') renderAggregatedTable();
+
+                // 자동 로그아웃 타이머 시작
+                resetInactivityTimer();
+            } else {
+                AudioUtil.playError();
+                const error = document.getElementById('loginError');
+                error.style.display = 'block';
+            }
+        }
+
+        // 제목 및 로고 업데이트 함수
+        function refreshAppTitles() {
+            const title = AttendanceDB.getAppTitle();
+            const logo = AttendanceDB.getAppLogo();
+
+            const loginTitle = document.getElementById('loginAppTitle');
+            const mainTitle = document.getElementById('mainAppTitle');
+            if (loginTitle) loginTitle.innerText = title;
+            if (mainTitle) mainTitle.innerText = title;
+            document.title = `${title} - 관리자 대시보드`;
+
+            // 로고 반영
+            const loginLogoArea = document.getElementById('loginLogoArea');
+            const mainLogoArea = document.getElementById('mainLogoArea');
+            const logoHtml = logo ? `<img src="${logo}" class="logo-img">` : `<i data-lucide="shield-check" style="width: 32px; height: 32px;"></i>`;
+            const mainLogoHtml = logo ? `<img src="${logo}" class="logo-img" style="width:48px; height:48px; border-radius:0.5rem;">` : '';
+
+            if (loginLogoArea) loginLogoArea.innerHTML = logoHtml;
+            if (mainLogoArea) mainLogoArea.innerHTML = mainLogoHtml;
+
+            lucide.createIcons();
+        }
+
+        let titleBlinkInterval = null;
+        let lastPendingCount = 0;
+        let lastTodayCount = 0; // [v2.5.0] 오늘 출근부 카운트
+
+        // 초기 로드 시 실행
+        window.addEventListener('DOMContentLoaded', async () => {
+            // [v2.4.3] 알림 권한 요청 (세션 스토리지 체크로 F5 반복 방지)
+            if ("Notification" in window && Notification.permission !== "granted") {
+                if (!sessionStorage.getItem('notireq_243')) {
+                    sessionStorage.setItem('notireq_243', 'true');
+                    Notification.requestPermission();
+                }
+            }
+
+            if (SERVER_CONFIG.useServer) {
+                await AttendanceDB.syncSettingsWithServer();
+                await refreshNotifications(); // 초기 상태 확인
+
+                // [v2.4.2] 60초마다 데이터 확인 (자동 갱신)
+                setInterval(refreshNotifications, 60000);
+            }
+            refreshAppTitles();
+
+            // URL 파라미터로 탭 직접 이동 (notifications.html 등에서 돌아올 때)
+            // 보안: 세션 내 인증된 경우에만 허용
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetTab = urlParams.get('tab');
+            if (targetTab && sessionStorage.getItem('admin_authenticated') === 'true') {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('adminContent').style.display = 'block';
+                lucide.createIcons();
+                resetInactivityTimer();
+                const navLinks = document.querySelectorAll('.nav-link');
+                let targetNavItem = null;
+                navLinks.forEach(link => {
+                    if (link.getAttribute('onclick') && link.getAttribute('onclick').includes(targetTab)) {
+                        targetNavItem = link;
+                    }
+                });
+                switchTab(targetTab, targetNavItem);
+            }
+        });
+
+        // [v2.5.0] 통합 알림 갱신 (승인대기 + 출근부제출) - 소리 제거됨 + [v2.5.1] 읽음 처리
+        async function refreshNotifications() {
+            if (!SERVER_CONFIG.useServer) return;
+
+            // 1. 승인 대기 명단 동기화
+            try {
+                await AttendanceDB.syncPendingWithServer();
+                renderPendingWorkers();
+            } catch (e) { console.error("Pending sync failed", e); }
+
+            // 2. 출근부 데이터 동기화 (회기년도 기준 - 1~2월은 이전 연도)
+            const y = FiscalYearUtil.getCurrentYear();
+            try {
+                const res = await fetch(`${SERVER_CONFIG.databaseURL}/records/${y}.json`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data) {
+                        const records = Array.isArray(data) ? data : Object.values(data);
+                        const local = AttendanceDB.getAll();
+                        const localIds = new Set(local.map(x => x.id));
+                        const newRecords = records.filter(r => !localIds.has(r.id));
+
+                        if (newRecords.length > 0) {
+                            await AttendanceDB.saveBulk(newRecords, true);
+                            renderAggregatedTable();
+                        }
+                    }
+                }
+            } catch (e) { console.error("Records sync failed", e); }
+
+            // --- 알림 로직 및 배지 업데이트 ---
+            try {
+                const pending = AttendanceDB.getPendingWorkers();
+                const pCount = pending.length;
+
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const todayRecords = AttendanceDB.getAll().filter(r => r.date === todayStr);
+                const tCount = todayRecords.length;
+
+                // [v2.5.1] 읽음 처리된 카운트 확인
+                const viewedCount = parseInt(localStorage.getItem('viewedTodayCount') || '0');
+                const badgeCount = Math.max(0, tCount - viewedCount);
+
+                if ("Notification" in window && Notification.permission === "granted") {
+                    if (pCount > lastPendingCount) {
+                        new Notification("신규 인원 등록 요청", { body: `${pCount}명의 승인 대기 인원이 있습니다.` });
+                    }
+                    // 배지 카운트(신규 등)가 늘어났을 때만 알림
+                    if (tCount > lastTodayCount && lastTodayCount > 0) {
+                        const diff = tCount - lastTodayCount;
+                        new Notification("신규 출근부 제출", { body: `방금 ${diff}명이 추가로 제출했습니다. (오늘 총 ${tCount}명)` });
+                    }
+                }
+
+                lastPendingCount = pCount;
+                lastTodayCount = tCount;
+
+                updateBadge('navPendingBadge', pCount, 'badge-warning', true);
+                // 월간 집계 배지는 '안 읽은 개수'만 표시, 0이면 숨김
+                updateBadge('navTodayBadge', badgeCount, 'badge-success', false);
+
+                if (pCount > 0) {
+                    if (!titleBlinkInterval) {
+                        let blink = false;
+                        titleBlinkInterval = setInterval(() => {
+                            document.title = blink ? `🔴 [${pCount}명 대기]` : `⚪ 관리자 페이지`;
+                            blink = !blink;
+                        }, 1000);
+                    }
+                } else {
+                    if (titleBlinkInterval) {
+                        clearInterval(titleBlinkInterval);
+                        titleBlinkInterval = null;
+                        refreshAppTitles();
+                    }
+                }
+            } catch (e) { console.error("Badge update failed", e); }
+        }
+
+        function updateBadge(id, count, colorClass, blink) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (count > 0) {
+                el.innerText = count;
+                el.style.display = 'inline-block';
+                el.className = `badge ${colorClass} ${blink ? 'badge-blink' : ''}`;
+            } else {
+                el.style.display = 'none';
+                el.classList.remove('badge-blink');
+            }
+        }
+
+        // [v2.5.1] 읽음 처리 함수
+        function markAsReadToday() {
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const todayRecords = AttendanceDB.getAll().filter(r => r.date === todayStr);
+            const count = todayRecords.length;
+
+            localStorage.setItem('viewedTodayCount', count.toString());
+            // 배지 즉시 숨김
+            updateBadge('navTodayBadge', 0, 'badge-success', false);
+        }
+    </script>
+    <div id="adminContent">
+        <div class="container no-print">
+            <header class="fade-in"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div id="mainLogoArea"></div>
+                    <div>
+                        <h1 id="mainAppTitle" style="margin-bottom:0.2rem;">프리미엄 근태 관리</h1>
+                        <p style="color: var(--text-muted);">통계, 인원 관리 및 일괄 리포트 출력</p>
+                    </div>
+                </div>
+            </header>
+
+            <nav class="nav-tabs fade-in">
+                <div class="nav-link active" onclick="showSection('aggView', this); markAsReadToday()">
+                    월간 집계 <span id="navTodayBadge" class="badge badge-success"
+                        style="display:none; margin-left:6px; font-size:0.7rem; vertical-align:middle;">0</span>
+                </div>
+                <div class="nav-link" onclick="showSection('annualView', this)">회기 집계</div>
+                <div class="nav-link" onclick="showSection('workerView', this)">
+                    인원 관리 <span id="navPendingBadge" class="badge badge-warning"
+                        style="display:none; margin-left:6px; font-size:0.7rem; vertical-align:middle;">0</span>
+                </div>
+                <div class="nav-link" onclick="showSection('noticeView', this)">공지사항</div>
+                <div class="nav-link" onclick="showSection('holidayView', this)">휴일 관리</div>
+                <div class="nav-link" onclick="showSection('settingsView', this)" style="margin-left:auto;">
+                    <i data-lucide="settings" style="width:16px;"></i> 설정
+                </div>
+            </nav>
+
+            <!-- Aggregated View Section -->
+            <div id="aggView" class="view-section active fade-in">
+                <div class="stats-grid"
+                    style="grid-template-columns: 1fr 2fr; gap: 1.5rem; margin-bottom: 2rem; align-items: stretch;">
+                    <!-- 전체 제출 현황 카드 -->
+                    <div class="glass stat-card"
+                        style="display: flex; flex-direction: column; justify-content: center; padding: 2.5rem; border-left: 6px solid var(--primary); min-height: 220px;">
+                        <div class="stat-value" id="statsTotal" style="font-size: 3.5rem; margin-bottom: 0.5rem;">0 / 0
+                        </div>
+                        <div class="stat-label" style="font-size: 1.2rem; font-weight: 800; color: var(--primary);">전체
+                            제출 현황</div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem;">현재 선택된 월의 총 제출 인원입니다.
+                        </p>
+                    </div>
+
+                    <!-- 보직별 상세 현황 카드 -->
+                    <div class="glass stat-card" style="padding: 2rem; min-height: 220px;">
+                        <div
+                            style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.8rem;">
+                            <i data-lucide="users" style="width: 20px; color: var(--secondary);"></i>
+                            <h3 style="margin:0; font-size: 1.2rem;">근무 형태별 상세 제출 현황</h3>
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem;">
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #edf2f7;">
+                                <div
+                                    style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem;">
+                                    1. 기간근무자</div>
+                                <div id="statsType1"
+                                    style="font-size: 1.4rem; font-weight: 800; color: var(--secondary);">0 / 0</div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #edf2f7;">
+                                <div
+                                    style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem;">
+                                    2. 상시(방학비)</div>
+                                <div id="statsType2"
+                                    style="font-size: 1.4rem; font-weight: 800; color: var(--secondary);">0 / 0</div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #edf2f7;">
+                                <div
+                                    style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem;">
+                                    3. 상시근무</div>
+                                <div id="statsType3"
+                                    style="font-size: 1.4rem; font-weight: 800; color: var(--secondary);">0 / 0</div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #edf2f7;">
+                                <div
+                                    style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem;">
+                                    4. 방학중근무</div>
+                                <div id="statsType4"
+                                    style="font-size: 1.4rem; font-weight: 800; color: var(--secondary);">0 / 0</div>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #edf2f7;">
+                                <div
+                                    style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.4rem;">
+                                    5. 그외</div>
+                                <div id="statsType5"
+                                    style="font-size: 1.4rem; font-weight: 800; color: var(--secondary);">0 / 0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass"
+                    style="padding: 1.5rem; margin-bottom: 2rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label>이름 검색</label>
+                        <input type="text" id="filterName" placeholder="성명을 입력하세요" oninput="renderAggregatedTable()">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label>조회 월 선택</label>
+                        <input type="month" id="filterMonth" onchange="renderAggregatedTable()">
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button id="syncBtn" class="btn btn-secondary" onclick="syncServer()"
+                            style="color: var(--success);">
+                            <i data-lucide="refresh-cw"></i> 서버 동기화
+                        </button>
+                        <button class="btn btn-primary desktop-only" onclick="printAll()">
+                            <i data-lucide="printer"></i> 모두 출력
+                        </button>
+                    </div>
+                </div>
+
+                <div class="glass" style="padding: 1.5rem;">
+                    <table id="summaryTable">
+                        <thead>
+                            <tr>
+                                <th>번호</th>
+                                <th>성명</th>
+                                <th>해당 월</th>
+                                <th>총 근무일수</th>
+                                <th>최근 전송일</th>
+                                <th>리포트</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Annual Summary Section -->
+            <div id="annualView" class="view-section fade-in">
+                <div class="glass"
+                    style="padding: 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="display: flex; gap: 1rem; flex: 1; align-items: flex-end;">
+                        <div style="flex: 1; max-width: 250px;">
+                            <label>회기 데이터 선택</label>
+                            <select id="fiscalYearSelect" class="btn btn-secondary" style="width:100%; text-align:left;"
+                                onchange="switchFiscalYear()">
+                                <!-- 스크립트에서 자동 생성됨 -->
+                            </select>
+                        </div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">
+                            * 학교 회기 기준(3월 ~ 익년 2월)으로 집계됩니다.
+                        </div>
+                    </div>
+                    <button class="btn btn-primary desktop-only" onclick="printAnnualReport()">
+                        <i data-lucide="printer"></i> 회기 리포트 인쇄
+                    </button>
+                </div>
+                <div class="glass" style="padding: 1.5rem; overflow-x: auto;">
+                    <table id="annualTable" style="min-width: 800px;">
+                        <thead>
+                            <tr>
+                                <th>성명</th>
+                                <th>3월</th>
+                                <th>4월</th>
+                                <th>5월</th>
+                                <th>6월</th>
+                                <th>7월</th>
+                                <th>8월</th>
+                                <th>9월</th>
+                                <th>10월</th>
+                                <th>11월</th>
+                                <th>12월</th>
+                                <th>1월</th>
+                                <th>2월</th>
+                                <th style="background:#f8fafc;">비고</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Worker Management Section -->
+            <div id="workerView" class="view-section fade-in">
+
+                <!-- [v2.3.0] 승인 대기 목록 (데이터 있을 때만 표시) -->
+                <div id="pendingSection" style="margin-bottom: 2rem; display: none;">
+                    <div class="glass" style="padding: 1.5rem; border: 2px solid var(--secondary);">
+                        <h3
+                            style="color: var(--secondary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="user-check"></i> 승인 대기 인원
+                            <span id="pendingCount" class="badge badge-warning"
+                                style="background: var(--secondary); color: white;">0명</span>
+                        </h3>
+                        <div style="overflow-x: auto;">
+                            <table id="pendingTable">
+                                <thead>
+                                    <tr>
+                                        <th>신청일시</th>
+                                        <th>이름</th>
+                                        <th>생년월일</th>
+                                        <th>전화번호</th>
+                                        <th>작업</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass" style="padding: 1.5rem; margin-bottom: 2rem;">
+                    <h2 style="margin-bottom: 1rem;">출근 명단</h2>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn btn-primary" onclick="window.location.href='notifications.html'">
+                            <i data-lucide="bell"></i> 알림 전송
+                        </button>
+                        <button class="btn btn-secondary" onclick="openWorkerModal()">
+                            <i data-lucide="user-plus"></i> 등록
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteSelectedWorkers()">
+                            <i data-lucide="trash-2"></i> 선택삭제
+                        </button>
+                        <button class="btn btn-secondary" onclick="triggerExcelUpload()">
+                            <i data-lucide="file-up"></i> Excel등록
+                        </button>
+                        <input type="file" id="workerExcelInput" style="display: none;" accept=".xlsx, .xls"
+                            onchange="handleExcelUpload(event)">
+                        <button class="btn btn-secondary" onclick="exportWorkersExcel()">
+                            <i data-lucide="file-down"></i> Excel저장
+                        </button>
+                    </div>
+                </div>
+                <div class="glass" style="padding: 1.5rem;">
+                    <div class="table-responsive-wrap">
+                        <table id="workerTable">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="selectAllWorkers" onclick="toggleAllWorkers(this)"></th>
+                                    <th>이름</th>
+                                    <th>전화번호</th>
+                                    <th>구분</th>
+                                    <th>주소</th>
+                                    <th>비고</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- [v2.2.0] Notice Management Section -->
+            <div id="noticeView" class="view-section fade-in">
+                <div class="glass" style="padding: 2.5rem;">
+                    <h2 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.8rem;">
+                        <i data-lucide="megaphone" style="color: var(--secondary);"></i> 직원 공지사항 설정
+                    </h2>
+                    <p style="color: var(--text-muted); margin-bottom: 2rem;">
+                        여기에 작성한 내용은 직원용 페이지(`worker.html`) 상단에 즉시 표시됩니다.
+                    </p>
+
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <button class="btn btn-primary" onclick="updateNotice()" style="padding: 0.75rem 2rem;">
+                            <i data-lucide="save"></i> 게시하기
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearNotice()" style="background: #ef4444;">
+                            <i data-lucide="trash-2"></i> 공지 초기화
+                        </button>
+                    </div>
+
+                    <div style="margin-bottom: 2rem;">
+                        <textarea id="noticeTextArea" class="btn btn-secondary"
+                            style="width: 100%; min-height: 250px; text-align: left; padding: 1.5rem; font-size: 1.1rem; line-height: 1.6; cursor: text; background: var(--surface); border: 2px solid var(--border); color: var(--text);"
+                            placeholder="직원들에게 알릴 내용을 입력하세요..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holiday Management Section -->
+            <div id="holidayView" class="view-section fade-in">
+                <div class="glass" style="padding: 1.5rem; margin-bottom: 2rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <div>
+                            <h2>휴일 관리</h2>
+                            <p style="color: var(--text-muted);">날짜를 클릭하여 휴일 또는 학교 재량 휴업일을 지정/해제하세요.</p>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.8rem;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <div style="width: 12px; height: 12px; background: #ff5f5f; border-radius: 2px;">
+                                    </div>
+                                    <span>휴일 (빨간색)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <div
+                                        style="width: 12px; height: 12px; background: #d1fae5; border-radius: 2px; border: 1px solid #34d399;">
+                                    </div>
+                                    <span style="color: #059669;">방학 기간 (초록색)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <div
+                                        style="width: 12px; height: 12px; background: white; border-radius: 2px; border: 2px solid var(--primary);">
+                                    </div>
+                                    <span style="color: var(--primary); font-weight: 700;">방학 중 출근일 (테두리 보라)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-group" style="max-width: 300px; margin-bottom: 2rem;">
+                        <label>관리할 월 선택</label>
+                        <input type="month" id="holidayMonth" onchange="renderHolidayCalendar()">
+                    </div>
+
+                    <div class="weekday-row"
+                        style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: bold; margin-bottom: 0.5rem;">
+                        <div style="color: var(--danger);">일</div>
+                        <div>월</div>
+                        <div>화</div>
+                        <div>수</div>
+                        <div>목</div>
+                        <div>금</div>
+                        <div style="color: var(--primary);">토</div>
+                    </div>
+                    <div id="holidayCalendarGrid" class="calendar-grid"></div>
+                    <div id="holidayPendingInfo" style="display:none; margin-top: 1rem; padding: 0.8rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; font-size: 0.9rem; color: #856404;">
+                        <span id="holidayPendingText"></span>
+                    </div>
+                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                        <button id="holidaySaveBtn" class="btn btn-primary" style="display:none; flex:1;" onclick="saveHolidayChanges()">
+                            휴일 변경사항 저장
+                        </button>
+                        <button id="holidayCancelBtn" class="btn btn-secondary" style="display:none; flex:1;" onclick="cancelHolidayChanges()">
+                            변경 취소
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div id="settingsView" class="view-section fade-in">
+                <div class="glass" style="padding: 2rem; margin: 0 auto;">
+                    <h2 style="margin-bottom: 2rem;"><i data-lucide="settings"></i> 시스템 설정</h2>
+
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>로고 이미지 설정</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">로그인 화면과 대시보드 상단에 표시될
+                            로고를 변경합니다.</p>
+                        <div style="display:flex; align-items:center; gap:1.5rem;">
+                            <div id="logoPreview" class="glass"
+                                style="width:80px; height:80px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:white;">
+                                <i data-lucide="image" style="color:#ccc;"></i>
+                            </div>
+                            <div style="flex:1;">
+                                <input type="file" id="logoInput" accept="image/*" style="display:none;"
+                                    onchange="updateAppLogo(this)">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('logoInput').click()">이미지 선택</button>
+                                <button class="btn btn-secondary" onclick="resetAppLogo()"
+                                    style="color:var(--danger);">초기화</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>앱 이름 설정</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">대시보드 상단 및 로그인 화면에 표시될
+                            이름을 수정합니다.</p>
+                        <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                            <input type="text" id="appTitleInput" placeholder="예: 우리회사 근태관리" class="btn btn-secondary"
+                                style="flex:1; text-align:left; cursor:text; color: var(--primary); font-size: 1.2rem; font-weight: 800; border: 2px solid var(--primary); background: #f8fafc; padding: 0.8rem 1rem;">
+                            <button class="btn btn-primary" onclick="updateAppTitle()" style="min-width:120px;">이름
+                                변경</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>자동 로그아웃 설정</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">장시간 활동이 없을 경우 자동으로
+                            초기화면으로 돌아갑니다. (0 입력 시 비활성화)</p>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <input type="number" id="autoLogoutInput" placeholder="10" class="btn btn-secondary"
+                                style="width:120px; text-align:center; cursor:text; color: var(--primary); font-size: 1.5rem; font-weight: 900; border: 2px solid var(--primary); background: #f8fafc;">
+                            <span style="font-weight:600;">분 후 로그아웃</span>
+                            <button class="btn btn-primary"
+                                onclick="updateAutoLogoutTime(); cachedAutoLogoutMinutes=null;"
+                                style="margin-left:auto;">설정 저장</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>관리자 비밀번호 변경</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">대시보드 접속 시 사용하는 비밀번호를
+                            수정합니다.</p>
+                        <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                            <input type="password" id="newPassword" placeholder="새 비밀번호 입력" class="btn btn-secondary"
+                                autocomplete="off"
+                                style="flex:1; text-align:left; cursor:text; color: var(--primary); font-size: 1.2rem; font-weight: 800; border: 2px solid var(--primary); background: #f8fafc; padding: 0.8rem 1rem;">
+                            <button class="btn btn-primary" onclick="updatePassword()" style="min-width:120px;">변경
+                                저장</button>
+                        </div>
+                    </div>
+
+
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>방학 기간 설정 (v1.7)</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">여름 및 겨울 방학 기간을 설정하면
+                            근무형태에 따라 출근 가능일이 자동 조정됩니다.</p>
+
+                        <div
+                            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:1.25rem; margin-bottom:1.5rem;">
+                            <div class="glass" style="padding:1.25rem;">
+                                <h4 style="margin-bottom:0.8rem; color:#818cf8;"><i data-lucide="sun"
+                                        style="width:16px;"></i> 여름 방학</h4>
+                                <div class="input-group">
+                                    <label>시작일</label>
+                                    <input type="date" id="vacSStart" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                                <div class="input-group">
+                                    <label>종료일</label>
+                                    <input type="date" id="vacSEnd" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                            </div>
+                            <div class="glass" style="padding:1.25rem;">
+                                <h4 style="margin-bottom:0.8rem; color:#60a5fa;"><i data-lucide="snowflake"
+                                        style="width:16px;"></i> 겨울 방학</h4>
+                                <div class="input-group">
+                                    <label>시작일</label>
+                                    <input type="date" id="vacWStart" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                                <div class="input-group">
+                                    <label>종료일</label>
+                                    <input type="date" id="vacWEnd" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                            </div>
+                            <!-- 봄방학 추가 (v1.8.5) -->
+                            <div class="glass" style="padding:1.25rem;">
+                                <h4 style="margin-bottom:0.8rem; color:#34d399;"><i data-lucide="flower"
+                                        style="width:16px;"></i> 봄 방학</h4>
+                                <div class="input-group">
+                                    <label>시작일</label>
+                                    <input type="date" id="vacPStart" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                                <div class="input-group">
+                                    <label>종료일</label>
+                                    <input type="date" id="vacPEnd" class="btn btn-secondary"
+                                        style="width:100%; text-align:left;">
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateVacationSettings()" style="width:100%;">방학 기간
+                            저장</button>
+                    </div>
+
+                    <!-- 소리 알림 설정 (v1.8.9) -->
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3>알림 소리 설정</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">중요 알림이나 성공/오류 발생 시
+                            효과음을 재생합니다.</p>
+                        <div style="display:flex; align-items:center; gap:1rem;">
+                            <button id="soundToggleBtn" class="btn btn-secondary" onclick="toggleSoundSetting()"
+                                style="display:flex; align-items:center; gap:0.5rem; min-width:140px; justify-content:center;">
+                                <i data-lucide="volume-2"></i> <span>소리 켜짐</span>
+                            </button>
+                            <span id="soundStatusText"
+                                style="font-size:0.9rem; font-weight:600; color:var(--primary);">알림 소리가 활성화되어
+                                있습니다.</span>
+                        </div>
+                    </div>
+
+                    <!-- [v2.0.0] 회기년도 아카이빙 (New) -->
+                    <div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h3><i data-lucide="archive"></i> 회기년도 아카이빙</h3>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">
+                            새로운 회기가 시작되면 이전 1년치 데이터를 <b>엑셀 백업 후 로컬에서 비워줌</b>으로써 앱 속도를 최적화합니다.
+                        </p>
+                        <div class="glass"
+                            style="padding:1.5rem; border: 1px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--primary); margin-bottom: 0.2rem;">수동 아카이빙 실행</h4>
+                                    <span style="font-size: 0.8rem; color: var(--text-muted);">현재 로컬 데이터를 모두 백업하고
+                                        초기화합니다.</span>
+                                </div>
+                                <div id="currentFiscalInfo" style="font-weight: 800; font-size: 1.2rem;">
+                                    <!-- JS로 0000년 표시 -->
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="confirmManualArchive(event)" style="width: 100%;">
+                                <i data-lucide="save"></i> 데이터 백업 및 앱 최적화 (Archive)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 2rem;">
+                        <h3>데이터 초기화</h3>
+                        <p style="color:var(--danger); font-size:0.9rem; margin-bottom:1.5rem;">⚠️ 초기화된 데이터는 복구할 수 없습니다.
+                            신중하게 선택하세요.</p>
+
+                        <div
+                            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
+                            <div class="glass" style="padding:1.5rem; text-align:center; border:1px solid #fee2e2;">
+                                <h4 style="margin-bottom:0.5rem;">데이터 로컬 초기화</h4>
+                                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">PC(브라우저)에 저장된
+                                    현재 회기 데이터를 비웁니다. 서버 데이터는 유지됩니다.</p>
+                                <button class="btn btn-secondary" onclick="clearLocalRecords()"
+                                    style="color:var(--danger); width:100%;">로컬 저장소 비우기</button>
+                            </div>
+
+                            <div class="glass"
+                                style="padding:1.5rem; text-align:center; border:2px solid #dc2626; background:rgba(220, 38, 38, 0.05);">
+                                <h4 style="margin-bottom:0.5rem; color:#dc2626;">🔥 완전 초기화 (공장 초기화)</h4>
+                                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">모든 데이터, 비밀번호,
+                                    인원 명단, 설정을 삭제합니다. (복구 불가능)</p>
+                                <button class="btn btn-secondary" onclick="factoryReset()"
+                                    style="background:#dc2626; color:white; border-color:#dc2626; width:100%;">완전
+                                    초기화</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- [v2.0.0] 회기년도 관리 가이드 -->
+                    <div class="glass"
+                        style="padding: 2rem; border-left: 6px solid var(--secondary); margin-top: 2rem;">
+                        <h3>💾 데이터 보관 및 회기 관리 가이드</h3>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 1rem 0;">
+                            학교 회기년도(3월~2월)가 종료되면 데이터를 내 PC에 안전하게 보관하고 다음 회기를 준비하세요.<br>
+                            <b>지정 백업 위치: [내 PC의 다운로드 폴더]</b>
+                        </p>
+                        <ul style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6;">
+                            <li>1. 연간 집계 탭에서 해당 회기의 <b>'명단 파일 내보내기'</b>로 Excel을 저장하세요.</li>
+                            <li>2. 위 '데이터 로컬 초기화'를 클릭하여 브라우저 용량을 확보하세요.</li>
+                            <li>3. 필요 시 '회기 데이터 전환' 메뉴를 통해 과거 기록을 서버에서 다시 불러올 수 있습니다.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Worker Add Modal (v1.7.3 최적화) -->
+        <div id="workerModal" class="modal-overlay" onclick="closeWorkerModal(event)">
+            <div class="glass modal-content" onclick="event.stopPropagation()"
+                style="max-width: 800px; width: 95%; max-height: 90vh; overflow-y: auto; padding: 2rem;">
+                <h2 style="margin-bottom: 1.5rem;">인원 등록</h2>
+                <form id="workerForm" onsubmit="saveWorker(event)">
+                    <input type="hidden" id="wId">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;">
+                        <div class="input-group">
+                            <label>성명</label>
+                            <input type="text" id="wName" required
+                                style="padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px;">
+                        </div>
+                        <div class="input-group">
+                            <label>전화번호</label>
+                            <input type="text" id="wPhone" placeholder="010-0000-0000"
+                                style="padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px;">
+                        </div>
+                        <div class="input-group">
+                            <label style="color:var(--primary); font-weight:700;">근무형태 선택</label>
+                            <select id="wWorkType"
+                                style="width:100%; padding:0.8rem; border: 2px solid var(--primary); border-radius: 8px; background: white; color: black; font-weight: 600; cursor: pointer;"
+                                onchange="handleWorkTypeChange(this.value)">
+                                <option value="기간근무">1. 기간근무 (학기중)</option>
+                                <option value="상시(방학비근무)">2. 상시근무 (방학중 비근무)</option>
+                                <option value="상시근무">3. 상시근무 (방학중 근무)</option>
+                                <option value="방학중근무">4. 방학중 근무 (방학만)</option>
+                                <option value="그외">5. 그외 형태 (직접입력)</option>
+                            </select>
+                        </div>
+                        <div class="input-group" id="wTypeOtherContainer" style="display: none; grid-column: span 3;">
+                            <label>근무형태 직접 입력</label>
+                            <input type="text" id="wTypeOther" placeholder="예: 재택근무, 특수사업 등"
+                                style="padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px;">
+                        </div>
+                        <div class="input-group" style="grid-column: span 3;">
+                            <label>주소</label>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                <input type="text" id="wAddress" placeholder="기본 주소를 입력하세요 (예: 서울시 강남구)">
+                                <input type="text" id="wAddressDetail" placeholder="상세 주소를 입력하세요 (동, 호수 등)">
+                            </div>
+                        </div>
+                        <div class="input-group" style="grid-column: span 3;">
+                            <label>비고</label>
+                            <input type="text" id="wNote">
+                        </div>
+
+                        <!-- 상세 근무 설정 (복구됨 v1.7.3) -->
+                        <div
+                            style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; grid-column: span 3;">
+                            <h4 style="margin-bottom: 0.8rem; color: var(--primary);">📅 상세 근무 설정</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                                <!-- 기간 -->
+                                <div class="glass" style="padding: 1rem; border-radius: 8px;">
+                                    <h5 style="margin-bottom: 0.8rem; color: var(--text-muted);"><i
+                                            data-lucide="calendar" style="width: 14px;"></i> 계약 기간</h5>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                        <div class="input-group" style="margin-bottom: 0;">
+                                            <label style="font-size:0.7rem;">시작</label>
+                                            <input type="date" id="wContractStart">
+                                        </div>
+                                        <div class="input-group" style="margin-bottom: 0;">
+                                            <label style="font-size:0.7rem;">종료</label>
+                                            <input type="date" id="wContractEnd">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- 시간 -->
+                                <div class="glass" style="padding: 1rem; border-radius: 8px;">
+                                    <h5 style="margin-bottom: 0.8rem; color: var(--text-muted);"><i data-lucide="clock"
+                                            style="width: 14px;"></i> 근무 시간</h5>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                                            <label style="font-size:0.7rem;">출근</label>
+                                            <select id="wWorkTime"
+                                                style="padding: 0.5rem; width:100%; border-radius: 4px;"></select>
+                                        </div>
+                                        <span style="padding-top: 1.2rem;">~</span>
+                                        <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                                            <label style="font-size:0.7rem;">퇴근</label>
+                                            <select id="wEndTime"
+                                                style="padding: 0.5rem; width:100%; border-radius: 4px;"></select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 요일 -->
+                            <div class="input-group" style="margin-top: 1.2rem;">
+                                <label style="margin-bottom: 0.5rem;">출근 요일 (매주 반복)</label>
+                                <div
+                                    style="display: flex; gap: 0.8rem; flex-wrap: wrap; background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px;">
+                                    <label style="display: flex; align-items: center; gap: 0.3rem;"><input
+                                            type="checkbox" name="workDay" value="1"> 월</label>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem;"><input
+                                            type="checkbox" name="workDay" value="2"> 화</label>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem;"><input
+                                            type="checkbox" name="workDay" value="3"> 수</label>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem;"><input
+                                            type="checkbox" name="workDay" value="4"> 목</label>
+                                    <label style="display: flex; align-items: center; gap: 0.3rem;"><input
+                                            type="checkbox" name="workDay" value="5"> 금</label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 0.3rem; color: #5fafff;"><input
+                                            type="checkbox" name="workDay" value="6"> 토</label>
+                                    <label
+                                        style="display: flex; align-items: center; gap: 0.3rem; color: #ff5f5f;"><input
+                                            type="checkbox" name="workDay" value="0"> 일</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="display: flex; gap: 1rem; margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+                        <button type="submit" class="btn btn-primary"
+                            style="flex: 2; height: 50px; font-size: 1.1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">인원
+                            정보 저장하기</button>
+                        <button type="button" class="btn btn-secondary" style="flex: 1; border-radius: 12px;"
+                            onclick="closeWorkerModal()">취소</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Settings Auth Modal -->
+        <div id="settingsAuthModal" class="modal-overlay">
+            <div class="glass modal-content" style="max-width: 350px; text-align: center; padding: 2rem;">
+                <div class="brand-logo" style="width: 48px; height: 48px; margin-bottom: 1rem;">
+                    <i data-lucide="lock" style="width: 24px; height: 24px;"></i>
+                </div>
+                <h3>보안 인증</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">설정 진입을 위해 비밀번호를 입력하세요.
+                </p>
+                <div class="input-group">
+                    <input type="password" id="settingsAuthPw" class="login-input" placeholder="비밀번호 입력"
+                        autocomplete="new-password"
+                        style="margin-bottom: 1rem; background: white !important; color: black !important; font-weight: bold;"
+                        onkeyup="if(event.key==='Enter') checkSettingsAuth()">
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-primary" onclick="checkSettingsAuth()" style="flex: 2;">확인</button>
+                    <button class="btn btn-secondary" onclick="closeSettingsAuth()" style="flex: 1;">취소</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            lucide.createIcons();
+
+            const monthInput = document.getElementById('filterMonth');
+            const holidayMonthInput = document.getElementById('holidayMonth');
+            const now = new Date();
+            const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            monthInput.value = currentMonthStr;
+            holidayMonthInput.value = currentMonthStr;
+
+            let pendingSection = null;
+            let pendingNavItem = null;
+
+            function showSection(id, el) {
+                // 설정 탭 진입 시 보안 확인 (커스텀 모달)
+                if (id === 'settingsView') {
+                    pendingSection = id;
+                    pendingNavItem = el;
+                    document.getElementById('settingsAuthModal').style.display = 'flex';
+                    document.getElementById('settingsAuthPw').value = '';
+                    document.getElementById('settingsAuthPw').focus();
+                    return;
+                }
+                switchTab(id, el);
+            }
+
+            function switchTab(id, el) {
+                document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+                if (el) el.classList.add('active');
+
+                if (id === 'aggView') renderAggregatedTable();
+                if (id === 'workerView') renderWorkerTable();
+                if (id === 'holidayView') renderHolidayCalendar();
+                if (id === 'annualView') renderAnnualTable();
+                if (id === 'noticeView') loadNotice(); // [v2.2.0] 공지사항 로드
+                if (id === 'settingsView') {
+                    document.getElementById('appTitleInput').value = AttendanceDB.getAppTitle();
+                    document.getElementById('autoLogoutInput').value = AttendanceDB.getAutoLogoutTime();
+                    const logo = AttendanceDB.getAppLogo();
+                    if (logo) document.getElementById('logoPreview').innerHTML = `<img src="${logo}" class="logo-img">`;
+
+                    // 방학 설정 로드 (v1.7)
+                    const v = AttendanceDB.getVacations();
+                    document.getElementById('vacSStart').value = v.sStart;
+                    document.getElementById('vacSEnd').value = v.sEnd;
+                    document.getElementById('vacWStart').value = v.wStart;
+                    document.getElementById('vacWEnd').value = v.wEnd;
+                    document.getElementById('vacPStart').value = v.pStart;
+                    document.getElementById('vacPEnd').value = v.pEnd;
+                }
+            }
+
+            // --- 자동 로그아웃 로직 ---
+            let inactivityTimer;
+            let cachedAutoLogoutMinutes = null;
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                if (cachedAutoLogoutMinutes === null) {
+                    cachedAutoLogoutMinutes = AttendanceDB.getAutoLogoutTime();
+                }
+                const minutes = cachedAutoLogoutMinutes;
+                if (minutes > 0 && document.getElementById('adminContent').style.display === 'block') {
+                    inactivityTimer = setTimeout(logoutAdmin, minutes * 60 * 1000);
+                }
+            }
+
+            function logoutAdmin() {
+                sessionStorage.removeItem('admin_authenticated');
+                document.getElementById('adminContent').style.display = 'none';
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('adminPasswordInput').value = '';
+                alert('장시간 활동이 없어 보안을 위해 자동 로그아웃되었습니다.');
+            }
+
+            ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(name => {
+                document.addEventListener(name, resetInactivityTimer, true);
+            });
+            // -----------------------
+
+            function checkSettingsAuth() {
+                const input = document.getElementById('settingsAuthPw').value;
+                if (input === AttendanceDB.getPassword()) {
+                    const sectionId = pendingSection;
+                    const navItem = pendingNavItem;
+                    closeSettingsAuth();
+                    if (sectionId) switchTab(sectionId, navItem);
+                } else {
+                    alert('비밀번호가 일치하지 않습니다.');
+                    document.getElementById('settingsAuthPw').value = '';
+                    document.getElementById('settingsAuthPw').focus();
+                }
+            }
+
+            function closeSettingsAuth() {
+                document.getElementById('settingsAuthModal').style.display = 'none';
+                pendingSection = null;
+                pendingNavItem = null;
+            }
+
+            // 휴일 변경 대기 목록 (서버 저장 전 로컬 변경사항)
+            var holidayPendingChanges = { added: {}, removed: {} };
+            // 저장 전 원본 백업
+            var holidayOriginalSnapshot = null;
+
+            function toggleHoliday(dateStr) {
+                var currentName = HolidayUtil.getHolidayName(dateStr);
+                var isCustom = HolidayUtil.customHolidays[dateStr];
+                var isVac = AttendanceDB.isInVacation(dateStr);
+
+                // 방학 기간인 경우: 방학 중 출근일 토글 (즉시 저장)
+                if (isVac) {
+                    var workingDays = AttendanceDB.getVacationWorkingDays();
+                    if (workingDays.includes(dateStr)) {
+                        if (confirm(`'${dateStr}'을(를) 방학 중 출근일에서 해제하시겠습니까?`)) {
+                            var updated = workingDays.filter(d => d !== dateStr);
+                            AttendanceDB.saveVacationWorkingDays(updated);
+                        }
+                    } else {
+                        if (confirm(`'${dateStr}'은 방학 기간입니다.\n이 날을 '방학 중 출근일'로 지정하시겠습니까?`)) {
+                            workingDays.push(dateStr);
+                            AttendanceDB.saveVacationWorkingDays(workingDays);
+                        }
+                    }
+                    renderHolidayCalendar();
+                    return;
+                }
+
+                // 원본 스냅샷 저장 (첫 변경 시)
+                if (!holidayOriginalSnapshot) {
+                    holidayOriginalSnapshot = JSON.parse(JSON.stringify(HolidayUtil.customHolidays));
+                }
+
+                // 일반 날짜인 경우: 로컬에서만 변경 (서버 저장은 저장버튼으로)
+                if (currentName) {
+                    if (!isCustom && !holidayPendingChanges.added[dateStr]) {
+                        alert(`'${currentName}'은(는) 기본 공휴일이라 수정할 수 없습니다.`);
+                        return;
+                    }
+                    // 휴일 취소 (로컬)
+                    delete HolidayUtil.customHolidays[dateStr];
+                    // 추적: 원래 있었던 것이면 removed에 기록, 방금 추가한 것이면 added에서 제거
+                    if (holidayPendingChanges.added[dateStr]) {
+                        delete holidayPendingChanges.added[dateStr];
+                    } else {
+                        holidayPendingChanges.removed[dateStr] = currentName;
+                    }
+                } else {
+                    var name = prompt('휴일 이름을 입력하세요 (예: 개교기념일, 재량휴업일)', '학교재량휴업일');
+                    if (!name) return;
+                    // 휴일 추가 (로컬)
+                    HolidayUtil.customHolidays[dateStr] = name;
+                    // 추적: 원래 삭제했던 것이면 removed에서 제거, 새로 추가한 것이면 added에 기록
+                    if (holidayPendingChanges.removed[dateStr]) {
+                        delete holidayPendingChanges.removed[dateStr];
+                    } else {
+                        holidayPendingChanges.added[dateStr] = name;
+                    }
+                }
+
+                updateHolidayPendingUI();
+                renderHolidayCalendar();
+            }
+
+            function updateHolidayPendingUI() {
+                var addedCount = Object.keys(holidayPendingChanges.added).length;
+                var removedCount = Object.keys(holidayPendingChanges.removed).length;
+                var totalChanges = addedCount + removedCount;
+                var infoBox = document.getElementById('holidayPendingInfo');
+                var textEl = document.getElementById('holidayPendingText');
+                var saveBtn = document.getElementById('holidaySaveBtn');
+                var cancelBtn = document.getElementById('holidayCancelBtn');
+
+                if (totalChanges > 0) {
+                    var parts = [];
+                    if (addedCount > 0) parts.push('추가 ' + addedCount + '건');
+                    if (removedCount > 0) parts.push('취소 ' + removedCount + '건');
+                    textEl.textContent = '변경 대기: ' + parts.join(', ') + ' — 아래 저장 버튼을 눌러 반영하세요.';
+                    infoBox.style.display = 'block';
+                    saveBtn.style.display = 'block';
+                    cancelBtn.style.display = 'block';
+                } else {
+                    infoBox.style.display = 'none';
+                    saveBtn.style.display = 'none';
+                    cancelBtn.style.display = 'none';
+                    holidayOriginalSnapshot = null;
+                }
+            }
+
+            async function saveHolidayChanges() {
+                var addedCount = Object.keys(holidayPendingChanges.added).length;
+                var removedCount = Object.keys(holidayPendingChanges.removed).length;
+
+                var msg = '다음 변경사항을 서버에 저장하시겠습니까?\n';
+                if (addedCount > 0) {
+                    msg += '\n[추가]\n';
+                    for (var d in holidayPendingChanges.added) {
+                        msg += '  - ' + d + ' : ' + holidayPendingChanges.added[d] + '\n';
+                    }
+                }
+                if (removedCount > 0) {
+                    msg += '\n[취소]\n';
+                    for (var d in holidayPendingChanges.removed) {
+                        msg += '  - ' + d + ' : ' + holidayPendingChanges.removed[d] + '\n';
+                    }
+                }
+
+                if (!confirm(msg)) return;
+
+                try {
+                    await HolidayUtil.saveCustom();
+                    alert('휴일 변경사항이 저장되었습니다.');
+                    holidayPendingChanges = { added: {}, removed: {} };
+                    holidayOriginalSnapshot = null;
+                    updateHolidayPendingUI();
+                    renderHolidayCalendar();
+                } catch (e) {
+                    alert('저장 실패: ' + e.message);
+                }
+            }
+
+            function cancelHolidayChanges() {
+                if (!confirm('변경사항을 취소하고 원래 상태로 되돌리시겠습니까?')) return;
+                if (holidayOriginalSnapshot) {
+                    HolidayUtil.customHolidays = JSON.parse(JSON.stringify(holidayOriginalSnapshot));
+                }
+                holidayPendingChanges = { added: {}, removed: {} };
+                holidayOriginalSnapshot = null;
+                updateHolidayPendingUI();
+                renderHolidayCalendar();
+            }
+
+            function renderHolidayCalendar() {
+                const [year, month] = holidayMonthInput.value.split('-').map(Number);
+                const firstDay = new Date(year, month - 1, 1).getDay();
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const grid = document.getElementById('holidayCalendarGrid');
+                grid.innerHTML = '';
+                for (let i = 0; i < firstDay; i++) {
+                    const empty = document.createElement('div');
+                    empty.className = 'calendar-day disabled';
+                    grid.appendChild(empty);
+                }
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const day = document.createElement('div');
+                    day.className = 'calendar-day';
+                    day.innerHTML = `<span>${i}</span>`;
+                    const dateStr = `${holidayMonthInput.value}-${String(i).padStart(2, '0')}`;
+
+                    const holidayName = HolidayUtil.getHolidayName(dateStr);
+                    const isVac = AttendanceDB.isInVacation(dateStr);
+                    const workingDays = AttendanceDB.getVacationWorkingDays();
+                    const isWorkingDay = workingDays.includes(dateStr);
+
+                    var isPendingAdd = !!holidayPendingChanges.added[dateStr];
+                    var isPendingRemove = !!holidayPendingChanges.removed[dateStr];
+
+                    if (holidayName) {
+                        day.classList.add('holiday');
+                        day.classList.add('selected');
+                        if (isPendingAdd) {
+                            day.style.border = '2px dashed #28a745';
+                            day.innerHTML += `<div class="holiday-name" style="color:#28a745;">+ ${holidayName}</div>`;
+                        } else {
+                            day.innerHTML += `<div class="holiday-name">${holidayName}</div>`;
+                        }
+                    } else if (isPendingRemove) {
+                        day.style.backgroundColor = '#ffe0e0';
+                        day.style.border = '2px dashed #dc3545';
+                        day.innerHTML += `<div style="font-size:0.6rem; color:#dc3545; text-decoration:line-through;">− ${holidayPendingChanges.removed[dateStr]}</div>`;
+                    } else if (isVac) {
+                        // 방학 기간 표시
+                        day.style.backgroundColor = '#d1fae5'; // emerald-100
+                        day.style.border = '1px solid #34d399';
+                        if (isWorkingDay) {
+                            day.style.border = '3px solid var(--primary)';
+                            day.innerHTML += `<div style="font-size: 0.6rem; color: var(--primary); font-weight: 800; margin-top: 2px;">★ 출근일 지정</div>`;
+                        } else {
+                            day.innerHTML += `<div style="font-size: 0.6rem; color: #059669; margin-top: 2px;">방학</div>`;
+                        }
+                    }
+
+                    day.onclick = () => toggleHoliday(dateStr);
+                    grid.appendChild(day);
+                }
+            }
+
+            function renderAggregatedTable() {
+                const data = AttendanceDB.getAll();
+                const workers = AttendanceDB.getWorkers();
+                const filterName = document.getElementById('filterName').value.toLowerCase();
+                const filterMonth = monthInput.value;
+
+                // 통계 초기화
+                const totalStats = { submitted: 0, total: workers.length };
+                const typeStats = {
+                    '기간근무': { s: 0, t: 0 },
+                    '상시(방학비근무)': { s: 0, t: 0 },
+                    '상시근무': { s: 0, t: 0 },
+                    '방학중근무': { s: 0, t: 0 },
+                    '그외': { s: 0, t: 0 }
+                };
+
+                // 전체 인원 유형별 집계
+                workers.forEach(w => {
+                    const wt = w.workType || '그외';
+                    if (typeStats[wt]) typeStats[wt].t++;
+                    else typeStats['그외'].t++;
+                });
+
+                const groups = {};
+                data.forEach(item => {
+                    const itemMonth = item.date.substring(0, 7);
+                    if (itemMonth !== filterMonth) return;
+                    if (filterName && !item.name.toLowerCase().includes(filterName)) return;
+                    if (!groups[item.name]) groups[item.name] = { name: item.name, month: itemMonth, days: new Set(), lastUpdate: item.timestamp };
+                    groups[item.name].days.add(item.date);
+                    if (new Date(item.timestamp) > new Date(groups[item.name].lastUpdate)) groups[item.name].lastUpdate = item.timestamp;
+                });
+
+                const groupArray = Object.values(groups);
+
+                // 제출 인원 유형별 집계
+                groupArray.forEach(g => {
+                    const worker = workers.find(w => w.name === g.name);
+                    const wt = (worker && worker.workType) ? worker.workType : '그외';
+                    if (typeStats[wt]) typeStats[wt].s++;
+                    else typeStats['그외'].s++;
+                });
+
+                // 통계 UI 반영
+                document.getElementById('statsTotal').innerText = `${groupArray.length} / ${workers.length}`;
+                document.getElementById('statsType1').innerText = `${typeStats['기간근무'].s} / ${typeStats['기간근무'].t}`;
+                document.getElementById('statsType2').innerText = `${typeStats['상시(방학비근무)'].s} / ${typeStats['상시(방학비근무)'].t}`;
+                document.getElementById('statsType3').innerText = `${typeStats['상시근무'].s} / ${typeStats['상시근무'].t}`;
+                document.getElementById('statsType4').innerText = `${typeStats['방학중근무'].s} / ${typeStats['방학중근무'].t}`;
+                document.getElementById('statsType5').innerText = `${typeStats['그외'].s} / ${typeStats['그외'].t}`;
+
+                const tbody = document.querySelector('#summaryTable tbody');
+                tbody.innerHTML = '';
+                groupArray.sort((a, b) => new Date(b.lastUpdate) - new Date(a.lastUpdate));
+                groupArray.forEach((group, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                    <td>${groupArray.length - index}</td>
+                    <td style="font-weight:600;">${group.name}</td>
+                    <td>${group.month}</td>
+                    <td><span class="badge badge-success">${group.days.size}일</span></td>
+                    <td style="font-size: 0.8rem;">${new Date(group.lastUpdate).toLocaleString()}</td>
+                    <td style="display:flex; gap:0.4rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="printIndividual('${group.name}', '${group.month}')">출력</button>
+                        <button class="btn btn-secondary btn-sm" onclick="deleteWorkerMonthRecord('${group.name}', '${group.month}')" style="color:var(--danger);">삭제</button>
+                    </td>
+                `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            }
+
+            function renderAnnualTable() {
+                const fiscalYearSelect = document.getElementById('fiscalYearSelect');
+                if (!fiscalYearSelect) return;
+                const fiscalYear = parseInt(fiscalYearSelect.value);
+                const data = AttendanceDB.getAll();
+                const workers = AttendanceDB.getWorkers();
+                const tbody = document.querySelector('#annualTable tbody');
+                tbody.innerHTML = '';
+                const nameSet = new Set(workers.map(w => w.name));
+                data.forEach(r => nameSet.add(r.name));
+
+                const months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2];
+                Array.from(nameSet).sort().forEach(name => {
+                    const worker = workers.find(w => w.name === name);
+                    const tr = document.createElement('tr');
+                    let html = `<td style="font-weight:600;">${name}</td>`;
+                    months.forEach(m => {
+                        const y = (m <= 2) ? fiscalYear + 1 : fiscalYear;
+                        const mStr = `${y}-${String(m).padStart(2, '0')}`;
+                        const count = data.filter(r => r.name === name && r.date.startsWith(mStr)).length;
+                        html += `<td>${count > 0 ? count + '일' : '-'}</td>`;
+                    });
+                    html += `<td style="font-size:0.85rem; color:var(--text-muted); background:#f8fafc;">${worker ? (worker.note || '') : ''}</td>`;
+                    tr.innerHTML = html;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderWorkerTable() {
+                renderPendingWorkers(); // [v2.3.0] 대기 인원 렌더링 호출
+                const workers = AttendanceDB.getWorkers();
+                const tbody = document.querySelector('#workerTable tbody');
+                tbody.innerHTML = '';
+                workers.forEach(w => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                    <td><input type="checkbox" class="worker-check" data-id="${w.id}" data-name="${w.name}" data-phone="${w.phone}"></td>
+                    <td style="font-weight:600;">${w.name}</td>
+                    <td>${w.phone}</td>
+                    <td>${w.type}</td>
+                    <td>${w.address}</td>
+                    <td>${w.note}</td>
+                    <td>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button class="btn btn-secondary btn-sm" onclick="editWorker('${w.id}')">수정</button>
+                            <button class="btn btn-secondary btn-sm" onclick="deleteWorker(${w.id})">삭제</button>
+                        </div>
+                    </td>
+                `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            }
+
+            // [v1.9.0] Excel 업로드/다운로드 관련 핸들러
+            function triggerExcelUpload() { document.getElementById('workerExcelInput').click(); }
+            async function handleExcelUpload(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const count = await ExcelUtil.importWorkers(file);
+                    if (count > 0) renderWorkerTable();
+                }
+                e.target.value = ''; // 초기화
+            }
+            function exportWorkersExcel() { ExcelUtil.exportWorkers(); }
+
+            function toggleAllWorkers(master) { document.querySelectorAll('.worker-check').forEach(cb => cb.checked = master.checked); }
+
+            async function copyAttendanceLink() {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = now.getMonth() + 1;
+                const date = now.getDate();
+
+                const msg = `[근태관리 안내]\n\n${year}년 ${month}월분 출근부 작성을 부탁드립니다.\n\n- 보내는 일자: ${year}.${month}.${date}\n\n아래 주소로 접속하여 본인 성명 입력 후 서명해 주세요.\n${getWorkerUrl()}`;
+
+                try {
+                    await navigator.clipboard.writeText(msg);
+                    alert('출근부 안내 링크를 복사하였습니다!\n원하는 곳(카톡/문자 등)에 붙여넣기(Ctrl+V) 하세요.');
+                } catch (e) {
+                    console.error('복사 실패:', e);
+                    alert('문구 복사에 실패했습니다. 브라우저 설정을 확인해주세요.');
+                }
+            }
+
+            function getWorkerUrl() {
+                let base = typeof GLOBAL_URL !== 'undefined' && GLOBAL_URL ? GLOBAL_URL : window.location.href.replace('admin.html', '');
+                if (!base.endsWith('/')) base += '/';
+                // 카카오톡 등 인앱 브라우저 캐시 방지: 타임스탬프 쿼리 파라미터 추가
+                return `${base}worker.html?t=${Date.now()}`;
+            }
+
+            async function requestAttendance(name, phone) {
+                const msg = `[근태관리] 출근부 작성을 부탁드립니다.\n접속 주소: ${getWorkerUrl()}`;
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+                try {
+                    await navigator.clipboard.writeText(msg);
+                    if (isMobile) {
+                        window.location.href = `sms:${phone}${navigator.userAgent.match(/iPhone/i) ? '&' : '?'}body=${encodeURIComponent(msg)}`;
+                    } else {
+                        alert(`전체 공용 안내 문구가 복사되었습니다.\n원하는 곳에 붙여넣기(Ctrl+V) 하세요.`);
+                    }
+                } catch (e) {
+                    window.location.href = `sms:${phone}${navigator.userAgent.match(/iPhone/i) ? '&' : '?'}body=${encodeURIComponent(msg)}`;
+                }
+            }
+
+            async function copyToKakao(name, phone, isBatch = false) {
+                const msg = `[근태관리] 출근부 작성을 부탁드립니다.\n\n접속 주소: ${getWorkerUrl()}`;
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+                try {
+                    await navigator.clipboard.writeText(msg);
+                    if (!isBatch) {
+                        if (confirm(`안내 문구가 복사되었습니다.\n확인을 누르면 카톡이 실행됩니다. 원하는 채팅방에 붙여넣기(Ctrl+V) 하세요.`)) {
+                            window.location.href = 'kakaotalk://';
+                        }
+                    } else {
+                        if (isMobile) window.location.href = 'kakaotalk://';
+                    }
+                } catch (e) {
+                    prompt('복사 실패. 아래 문구를 직접 복사하세요:', msg);
+                }
+            }
+
+            function closeWorkerModal(e) {
+                if (e && e.target !== e.currentTarget) return;
+                document.getElementById('workerModal').style.display = 'none';
+            }
+
+            function handleWorkTypeChange(val) {
+                const container = document.getElementById('wTypeOtherContainer');
+                if (val === '그외') {
+                    container.style.display = 'block';
+                    document.getElementById('wTypeOther').focus();
+                } else {
+                    container.style.display = 'none';
+                }
+
+                // 유형 2, 3 상시 출근자 필드 비활성화 로직 (v1.8.1)
+                const isRegular = (val === '상시(방학비근무)' || val === '상시근무');
+                const fieldsToDisable = ['wContractStart', 'wContractEnd', 'wWorkTime', 'wEndTime'];
+                fieldsToDisable.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.disabled = isRegular;
+                        el.style.opacity = isRegular ? '0.5' : '1';
+                        el.style.background = isRegular ? '#f1f5f9' : '';
+                    }
+                });
+
+                document.querySelectorAll('input[name="workDay"]').forEach(cb => {
+                    cb.disabled = isRegular;
+                    cb.parentElement.style.opacity = isRegular ? '0.5' : '1';
+                    cb.parentElement.style.pointerEvents = isRegular ? 'none' : 'auto';
+                });
+            }
+
+            function openWorkerModal(worker = null, registerData = null) {
+                const m = document.getElementById('workerModal');
+                document.getElementById('workerForm').reset();
+                document.getElementById('wId').value = worker ? worker.id : '';
+                document.getElementById('wTypeOtherContainer').style.display = 'none';
+
+                // 요일 체크박스 초기화
+                document.querySelectorAll('input[name="workDay"]').forEach(cb => cb.checked = false);
+
+                if (worker) {
+                    document.getElementById('wName').value = worker.name || '';
+                    document.getElementById('wPhone').value = worker.phone || '';
+                    document.getElementById('wAddress').value = worker.address || '';
+                    document.getElementById('wAddressDetail').value = worker.addressDetail || '';
+                    document.getElementById('wNote').value = worker.note || '';
+
+                    // 근무 형태 정보 (v1.7.2 복구)
+                    document.getElementById('wContractStart').value = worker.contractStartDate || '';
+                    document.getElementById('wContractEnd').value = worker.contractEndDate || '';
+                    document.getElementById('wWorkTime').value = worker.workTime || '';
+                    document.getElementById('wEndTime').value = worker.endTime || '';
+
+                    // 요일 체크
+                    if (Array.isArray(worker.workDays)) {
+                        worker.workDays.forEach(dayIndex => {
+                            const cb = document.querySelector(`input[name="workDay"][value="${dayIndex}"]`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
+
+                    // 근무형태 명칭 복구
+                    const select = document.getElementById('wWorkType');
+                    const options = Array.from(select.options).map(o => o.value);
+                    if (options.includes(worker.workType)) {
+                        select.value = worker.workType;
+                        document.getElementById('wTypeOtherContainer').style.display = 'none';
+                    } else {
+                        select.value = '그외';
+                        document.getElementById('wTypeOtherContainer').style.display = 'block';
+                        document.getElementById('wTypeOther').value = worker.workType || '';
+                    }
+                } else if (registerData) {
+                    // [v2.3.0] 신규 승인 로직 (자동 채움)
+                    document.getElementById('wName').value = registerData.name || '';
+                    document.getElementById('wPhone').value = registerData.phone || '';
+                    // 생년월일은 비고란에 자동 기입 (개인정보 보호를 위해 '인증확인'으로 변경)
+                    document.getElementById('wNote').value = '인증확인';
+                    // 대기 목록 ID를 히든 필드가 아닌 별도 속성으로 저장해두면 좋지만, 
+                    // 여기서는 저장이 완료되면 대기 목록에서 삭제하는 방식을 사용하므로 wId는 비워둡니다.
+                    // 대신 전역 변수나 속성으로 pendingId를 넘겨주어야 삭제가 가능합니다.
+                    document.getElementById('workerForm').dataset.pendingId = registerData.id;
+                }
+
+                m.style.display = 'flex';
+                handleWorkTypeChange(document.getElementById('wWorkType').value); // 초기 비활성화 상태 적용
+                lucide.createIcons();
+            }
+
+            function editWorker(id) {
+                const w = AttendanceDB.getWorkers().find(x => x.id == id);
+                if (w) openWorkerModal(w);
+            }
+
+            async function saveWorker(e) {
+                e.preventDefault();
+                const id = document.getElementById('wId').value;
+
+                let selectedType = document.getElementById('wWorkType').value;
+                if (selectedType === '그외') {
+                    selectedType = document.getElementById('wTypeOther').value.trim() || '기타';
+                }
+
+                // 요일 선택 값 수집
+                const workDays = Array.from(document.querySelectorAll('input[name="workDay"]:checked')).map(cb => parseInt(cb.value));
+
+                const isRegular = (selectedType === '상시(방학비근무)' || selectedType === '상시근무');
+
+                const w = {
+                    name: document.getElementById('wName').value,
+                    phone: document.getElementById('wPhone').value,
+                    type: selectedType, // 이전 필드 호환용
+                    workType: selectedType, // v1.7 신규 필드
+                    address: document.getElementById('wAddress').value,
+                    addressDetail: document.getElementById('wAddressDetail').value,
+                    note: document.getElementById('wNote').value,
+                    // 상세 근무 정보 저장 (v1.7.2 복구, v1.8.7 상시근무자 초기화 적용)
+                    workDays: isRegular ? [] : workDays,
+                    contractStartDate: isRegular ? '' : document.getElementById('wContractStart').value,
+                    contractEndDate: isRegular ? '' : document.getElementById('wContractEnd').value,
+                    workTime: isRegular ? '' : document.getElementById('wWorkTime').value,
+                    endTime: isRegular ? '' : document.getElementById('wEndTime').value
+                };
+
+                // [유효성 검사 v1.8.8]
+                if (!isRegular) {
+                    if (w.contractStartDate && w.contractEndDate && w.contractStartDate > w.contractEndDate) {
+                        return alert('계약 종료일이 시작일보다 빠를 수 없습니다.');
+                    }
+                    if (w.workTime && w.endTime && w.workTime >= w.endTime) {
+                        return alert('퇴근 시간이 출근 시간보다 빠르거나 같을 수 없습니다.');
+                    }
+                }
+
+                if (id) await AttendanceDB.updateWorker({ ...w, id }); else {
+                    await AttendanceDB.saveWorker(w);
+                    // [v2.3.0] 신규 승인 건이었다면 대기 목록에서 삭제
+                    const pendingId = document.getElementById('workerForm').dataset.pendingId;
+                    if (pendingId) {
+                        await AttendanceDB.deletePendingWorker(pendingId);
+                        delete document.getElementById('workerForm').dataset.pendingId;
+                    }
+                }
+                AudioUtil.playSuccess();
+                document.getElementById('workerModal').style.display = 'none';
+                renderWorkerTable();
+            }
+
+            // [v2.3.0] 대기 인원 렌더링 및 관리
+            function renderPendingWorkers() {
+                const pending = AttendanceDB.getPendingWorkers();
+                const section = document.getElementById('pendingSection');
+                const tbody = document.querySelector('#pendingTable tbody');
+                const countBadge = document.getElementById('pendingCount');
+
+                // [v2.4.1] 탭 배지 업데이트
+                const navBadge = document.getElementById('navPendingBadge');
+                if (navBadge) {
+                    if (pending.length > 0) {
+                        navBadge.innerText = pending.length;
+                        navBadge.style.display = 'inline-block';
+                        // [v2.4.2] 빨간색 깜빡임 효과 추가
+                        navBadge.classList.remove('badge-warning');
+                        navBadge.classList.add('badge-blink');
+                    } else {
+                        navBadge.style.display = 'none';
+                        navBadge.classList.remove('badge-blink');
+                    }
+                }
+
+                if (pending.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+                countBadge.innerText = `${pending.length}명`;
+                tbody.innerHTML = '';
+
+                pending.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // 최신순
+
+                pending.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.style.background = '#fffbeb'; // 대기 중 강조 (연한 노랑)
+                    tr.innerHTML = `
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">${new Date(p.timestamp).toLocaleString()}</td>
+                        <td style="font-weight: 700; color: var(--secondary);">${p.name}</td>
+                        <td>${p.birth}</td>
+                        <td>${p.phone}</td>
+                        <td>
+                            <div style="display:flex; gap:0.5rem;">
+                                <button class="btn btn-primary btn-sm" onclick='approveWorker(${JSON.stringify(p)})'>승인</button>
+                                <button class="btn btn-secondary btn-sm" onclick="rejectWorker('${p.id}')" style="color: var(--danger);">거절</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function approveWorker(pendingData) {
+                // 모달을 열고 정보를 채워줌
+                openWorkerModal(null, pendingData);
+            }
+
+            async function rejectWorker(id) {
+                if (confirm('해당 신청을 거절하고 삭제하시겠습니까?')) {
+                    await AttendanceDB.deletePendingWorker(id);
+                    renderWorkerTable(); // 재렌더링
+                }
+            }
+
+            async function deleteWorker(id) { if (confirm('정말 삭제하시겠습니까?')) { await AttendanceDB.deleteWorker(id); renderWorkerTable(); } }
+
+            // [v2.5.3] 선택 인원 일괄 삭제
+            async function deleteSelectedWorkers() {
+                const checked = document.querySelectorAll('.worker-check:checked');
+                if (checked.length === 0) return alert('삭제할 인원을 선택해주세요.');
+
+                if (confirm(`선택한 ${checked.length}명의 인원을 정말 삭제하시겠습니까?`)) {
+                    for (const cb of checked) {
+                        const id = cb.dataset.id;
+                        if (id) await AttendanceDB.deleteWorker(id);
+                    }
+                    alert('삭제되었습니다.');
+                    renderWorkerTable();
+                }
+            }
+
+            function updatePassword() {
+                const pwInput = document.getElementById('newPassword');
+                const pw = pwInput.value;
+                if (pw.length < 4) return alert('4자리 이상 입력하세요.');
+                if (confirm('비밀번호를 변경할까요?')) {
+                    AttendanceDB.savePassword(pw);
+                    alert('변경되었습니다.');
+                    pwInput.value = ''; // 입력창 비우기
+                }
+            }
+
+            function updateAppTitle() {
+                const titleInput = document.getElementById('appTitleInput');
+                const title = titleInput.value.trim();
+                if (!title) return alert('변경할 이름을 입력하세요.');
+                if (confirm(`앱 이름을 "${title}"(으)로 변경할까요?`)) {
+                    AttendanceDB.saveAppTitle(title);
+                    refreshAppTitles();
+                    alert('변경되었습니다.');
+                    titleInput.value = '';
+                }
+            }
+
+            function updateAppLogo(input) {
+                if (input.files && input.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        if (confirm('선택한 이미지를 로고로 사용하시겠습니까?')) {
+                            AttendanceDB.saveAppLogo(e.target.result);
+                            refreshAppTitles();
+                            alert('로고가 성공적으로 변경되었습니다.');
+                        }
+                    };
+                    reader.readAsDataURL(input.files[0]);
+                }
+            }
+
+            function resetAppLogo() {
+                if (confirm('로고를 기본 아이콘으로 초기화할까요?')) {
+                    AttendanceDB.saveAppLogo(null);
+                    refreshAppTitles();
+                    alert('초기화되었습니다.');
+                }
+            }
+
+            function updateAutoLogoutTime() {
+                const val = document.getElementById('autoLogoutInput').value;
+                const minutes = parseInt(val);
+                if (isNaN(minutes) || minutes < 0) return alert('올바른 시간을 입력하세요.');
+                AttendanceDB.saveAutoLogoutTime(minutes);
+                resetInactivityTimer();
+                alert('자동 로그아웃 시간이 설정되었습니다.');
+            }
+
+            async function deleteWorkerMonthRecord(name, month) {
+                if (!confirm(`${name}님의 ${month} 출근 기록을 삭제하시겠습니까?\n삭제 후 해당 직원이 다시 제출할 수 있습니다.`)) return;
+                try {
+                    await AttendanceDB.deleteWorkerMonth(name, month);
+                    alert(`${name}님의 ${month} 출근 기록이 삭제되었습니다.`);
+                    renderAggregatedTable();
+                } catch (e) {
+                    console.error('삭제 실패:', e);
+                    alert('삭제 중 오류가 발생했습니다. 다시 시도해주세요.');
+                }
+            }
+
+            async function clearAllRecords() { if (confirm('모든 출근 기록을 삭제할까요?')) { await AttendanceDB.clear(); alert('삭제되었습니다.'); renderAggregatedTable(); } }
+            async function clearAllWorkersData() { if (confirm('모든 인원 명단을 삭제할까요?')) { await AttendanceDB.clearWorkers(); alert('삭제되었습니다.'); renderWorkerTable(); } }
+
+            // 방학 설정 저장 (v1.7)
+            function updateVacationSettings() {
+                const vac = {
+                    sStart: document.getElementById('vacSStart').value,
+                    sEnd: document.getElementById('vacSEnd').value,
+                    wStart: document.getElementById('vacWStart').value,
+                    wEnd: document.getElementById('vacWEnd').value,
+                    pStart: document.getElementById('vacPStart').value,
+                    pEnd: document.getElementById('vacPEnd').value
+                };
+
+                // [유효성 검사 v1.8.8]
+                if (vac.sStart && vac.sEnd && vac.sStart > vac.sEnd) return alert('여름 방학 종료일이 시작일보다 빠릅니다.');
+                if (vac.wStart && vac.wEnd && vac.wStart > vac.wEnd) return alert('겨울 방학 종료일이 시작일보다 빠릅니다.');
+                if (vac.pStart && vac.pEnd && vac.pStart > vac.pEnd) return alert('봄 방학(학기말) 종료일이 시작일보다 빠릅니다.');
+
+                if (confirm('방학 기간을 저장하시겠습니까?\n이 기간에 맞춰 직원 출근부가 자동 제어됩니다.')) {
+                    AttendanceDB.saveVacations(vac);
+                    alert('방학 설정이 저장되었습니다.');
+                }
+            }
+
+            function printAnnualReport() {
+                const select = document.getElementById('fiscalYearSelect');
+                const fy = select ? select.value : '';
+                const win = window.open('', '_blank');
+                win.document.write(`<html><head><title>${fy}회기 집계 리포트</title><style>table{width:100%;border-collapse:collapse;font-size:10pt;}th,td{border:1px solid #000;padding:5px;text-align:center;}th{background:#f8fafc;}</style></head><body><h1>${fy}회기 출근 집계표 (3월~익년 2월)</h1>${document.getElementById('annualTable').outerHTML}</body></html>`);
+                win.document.close(); win.print();
+            }
+
+            function generateCalendarHTML(name, month, records) {
+                const [y, m] = month.split('-').map(Number);
+                const days = new Date(y, m, 0).getDate();
+                const first = new Date(y, m - 1, 1).getDay();
+                const worker = AttendanceDB.getWorkerByName(name);
+                let grid = '';
+                ['일', '월', '화', '수', '목', '금', '토'].forEach(d => grid += `<div class="calendar-print-header">${d}</div>`);
+                for (let i = 0; i < first; i++) grid += '<div class="calendar-print-day other-month"></div>';
+                for (let i = 1; i <= days; i++) {
+                    const ds = `${month}-${String(i).padStart(2, '0')}`;
+                    const entry = records.find(r => r.date === ds);
+                    const holiday = HolidayUtil.getHolidayName(ds);
+                    const isVac = AttendanceDB.isInVacation(ds);
+                    const workingDays = AttendanceDB.getVacationWorkingDays();
+                    const isVacWorking = workingDays.includes(ds);
+                    const isWE = new Date(y, m - 1, i).getDay() % 6 === 0;
+
+                    let classes = ['calendar-print-day'];
+                    if (isWE) classes.push('weekend');
+                    if (holiday) classes.push('holiday');
+                    if (isVac) classes.push('vacation');
+                    if (isVacWorking) classes.push('vacation-working');
+
+                    grid += `<div class="${classes.join(' ')}">
+                        <div style="font-size:12pt; font-weight:800; border-bottom:1px solid #eee; padding-bottom:2px;">${i}</div>
+                        ${holiday ? `<div class="holiday-name">${holiday}</div>` : ''}
+                        ${(isVac && !holiday && !isVacWorking) ? `<div class="holiday-name" style="color:#059669; border-color:#d1fae5;">방학</div>` : ''}
+                        ${isVacWorking ? `<div class="holiday-name" style="color:var(--primary); border-color:#ddd6fe; font-weight:bold;">방학중근무</div>` : ''}
+                        <div style="margin-top:auto; display:flex; flex-direction:column; align-items:center;">
+                            ${entry ? `<img src="${entry.signature}" class="sig-img" style="max-height:25px; margin-bottom:2px;"><span style="font-size:8px; font-weight:600;">${name}</span>` : ''}
+                        </div>
+                    </div>`;
+                }
+                return `<div class="a4-page">
+                    <div style="text-align:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:10px;">
+                        <h1 style="margin:0; font-size:28pt; letter-spacing:10px;">출근부</h1>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px 20px; margin-bottom:10px; font-size:11pt;">
+                        <div style="border-bottom:1px solid #ddd; padding:4px;">성명: <b>${name}</b></div>
+                        <div style="border-bottom:1px solid #ddd; padding:4px; text-align:right;">기간: <b>${y}년 ${m}월</b></div>
+                        <div style="border-bottom:1px solid #ddd; padding:4px;">연락처: ${worker ? worker.phone : '-'}</div>
+                        <div style="border-bottom:1px solid #ddd; padding:4px; text-align:right;">주소: ${worker ? (worker.address || '-') : '-'}</div>
+                    </div>
+                    <div class="calendar-print">${grid}</div>
+                </div>`;
+            }
+
+            async function waitForImagesAndPrint() {
+                const images = document.querySelectorAll('#printSection img');
+                const promises = Array.from(images).map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(resolve => {
+                        img.onload = resolve;
+                        img.onerror = resolve; // 에러 시에도 인쇄는 진행
+                    });
+                });
+
+                // 모든 이미지가 로드될 때까지 대기
+                await Promise.all(promises);
+                // 브라우저 렌더링을 위해 아주 잠깐 대기
+                setTimeout(() => {
+                    window.print();
+                }, 100);
+            }
+
+            async function printIndividual(name, month) {
+                const d = AttendanceDB.getAll().filter(r => r.name === name && r.date.startsWith(month));
+                document.getElementById('printSection').innerHTML = generateCalendarHTML(name, month, d);
+                await waitForImagesAndPrint();
+            }
+
+            async function printAll() {
+                const d = AttendanceDB.getAll();
+                const m = monthInput.value;
+                const names = [...new Set(d.filter(r => r.date.startsWith(m)).map(r => r.name))];
+                if (names.length === 0) return alert('데이터 없음');
+                let html = '';
+                names.forEach(n => html += generateCalendarHTML(n, m, d.filter(r => r.name === n && r.date.startsWith(m))));
+                document.getElementById('printSection').innerHTML = html;
+                await waitForImagesAndPrint();
+            }
+
+            // [v2.4.0] 붙여넣기 집계 기능 복구
+            async function importFromMessage() {
+                const input = prompt('직원에게 받은 데이터(JSON)를 여기에 붙여넣으세요:');
+                if (!input) return;
+
+                try {
+                    // 1. JSON 파싱 시도
+                    let data;
+                    try {
+                        data = JSON.parse(input);
+                    } catch (e) {
+                        return alert('올바른 데이터 형식이 아닙니다.\n(JSON 파싱 실패)');
+                    }
+
+                    // 2. 단일 데이터 또는 배열 처리
+                    if (!Array.isArray(data)) data = [data];
+
+                    // 3. 유효성 검사 및 저장
+                    let successCount = 0;
+                    const promises = data.map(async (record) => {
+                        if (record.name && record.date && record.signature) {
+                            // 이미 존재하는지 확인 (중복 방지)
+                            const current = AttendanceDB.getAll();
+                            const exists = current.some(r => r.name === record.name && r.date === record.date);
+
+                            if (!exists) {
+                                await AttendanceDB.save({
+                                    ...record,
+                                    id: record.id || (Date.now() + Math.random()),
+                                    timestamp: record.timestamp || new Date().toISOString()
+                                });
+                                successCount++;
+                            }
+                        }
+                    });
+
+                    await Promise.all(promises);
+
+                    if (successCount > 0) {
+                        AudioUtil.playSuccess();
+                        alert(`${successCount}건의 데이터가 성공적으로 등록되었습니다.`);
+                        renderAggregatedTable();
+                    } else {
+                        alert('새로 등록할 데이터가 없거나 모두 중복된 데이터입니다.');
+                    }
+
+                } catch (e) {
+                    console.error(e);
+                    alert('데이터 처리 중 오류가 발생했습니다.');
+                }
+            }
+
+            async function syncServer() {
+                const b = document.getElementById('syncBtn');
+                const old = b.innerHTML;
+                b.disabled = true; b.innerHTML = '동기화 중...';
+                try {
+                    await AttendanceDB.syncSettingsWithServer();
+                    const w = await AttendanceDB.syncWorkersWithServer();
+                    const fy = document.getElementById('fiscalYearSelect').value;
+                    const r = await AttendanceDB.syncWithServer(fy);
+                    refreshAppTitles();
+                    renderWorkerTable(); renderAggregatedTable();
+                } catch (e) { alert('동기화 실패'); }
+                finally { b.disabled = false; b.innerHTML = old; lucide.createIcons(); }
+            }
+
+            // [v2.0.0] 회기년도 관련 기능
+            function initFiscalYearSelect() {
+                const select = document.getElementById('fiscalYearSelect');
+                if (!select) return;
+                const current = FiscalYearUtil.getCurrentYear();
+                select.innerHTML = '';
+                for (let y = 2024; y <= current + 1; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.innerText = `${y} 회기 (3월~)`;
+                    if (y === current) opt.selected = true;
+                    select.appendChild(opt);
+                }
+            }
+
+            async function switchFiscalYear() {
+                const fy = document.getElementById('fiscalYearSelect').value;
+                if (confirm(`${fy} 회기 데이터를 서버에서 불러오시겠습니까?\n(현재 화면의 데이터가 변경됩니다)`)) {
+                    localStorage.removeItem(DB_KEY); // 로컬 데이터 비우기
+                    await syncServer();
+                }
+            }
+
+            // [v2.2.0] 공지사항 관련 기능
+            function loadNotice() {
+                const notice = AttendanceDB.getNotice();
+                const area = document.getElementById('noticeTextArea');
+                if (area) area.value = notice;
+            }
+
+            async function updateNotice() {
+                const content = document.getElementById('noticeTextArea').value.trim();
+                await AttendanceDB.saveNotice(content);
+                AudioUtil.playSuccess();
+                alert('공지사항이 저장되어 게시되었습니다.');
+            }
+
+            async function clearNotice() {
+                if (confirm('공지사항을 완전히 삭제하시겠습니까?\n직원 페이지에서 공지가 사라집니다.')) {
+                    document.getElementById('noticeTextArea').value = '';
+                    await AttendanceDB.saveNotice('');
+                    AudioUtil.playSuccess();
+                    alert('공지사항이 삭제되었습니다.');
+                }
+            }
+
+            function clearLocalRecords() {
+                if (confirm('브라우저 저장소를 비워 용량을 확보할까요?\n(서버에는 데이터가 계속 유지됩니다)')) {
+                    localStorage.removeItem(DB_KEY);
+                    renderAggregatedTable();
+                    alert('로컬 저장소가 정리되었습니다.');
+                }
+            }
+
+            async function clearServerRecords() {
+                const fy = document.getElementById('fiscalYearSelect').value;
+                if (confirm(`${fy} 회기의 서버 데이터를 영구 삭제할까요?\n삭제 후 복구할 수 없습니다.`)) {
+                    await AttendanceDB.clear(fy);
+                    renderAggregatedTable();
+                }
+            }
+
+            // [v2.6.0] 완전 초기화 (공장 초기화)
+            async function factoryReset() {
+                const confirmText = '⚠️ 완전 초기화 경고 ⚠️\n\n모든 데이터가 영구 삭제됩니다:\n• 출근 기록 (로컬+서버)\n• 인원 명단 및 비밀번호\n• 앱 설정 및 공지사항\n\n복구 불가능! 진행하시겠습니까?';
+
+                if (!confirm(confirmText)) return;
+
+                // 2차 확인
+                const finalConfirm = prompt('정말로 모든 데이터를 삭제하시려면\n"완전삭제" 라고 입력하세요:');
+                if (finalConfirm !== '완전삭제') {
+                    alert('취소되었습니다.');
+                    return;
+                }
+
+                try {
+                    // 1. 로컬 스토리지 완전 삭제
+                    localStorage.clear();
+
+                    // 2. 서버 데이터 삭제 (Firebase)
+                    if (SERVER_CONFIG.useServer && SERVER_CONFIG.databaseURL) {
+                        const fy = FiscalYearUtil.getCurrentYear();
+
+                        // 출근 기록 삭제
+                        await fetch(`${SERVER_CONFIG.databaseURL}/records/${fy}.json`, { method: 'DELETE' });
+
+                        // 인원 명단 삭제
+                        await fetch(`${SERVER_CONFIG.databaseURL}/workers.json`, { method: 'DELETE' });
+
+                        // 대기 인원 삭제
+                        await fetch(`${SERVER_CONFIG.databaseURL}/pending_workers.json`, { method: 'DELETE' });
+
+                        // 설정 삭제
+                        await fetch(`${SERVER_CONFIG.databaseURL}/settings.json`, { method: 'DELETE' });
+
+                        // 휴일 설정 삭제
+                        await fetch(`${SERVER_CONFIG.databaseURL}/holidays.json`, { method: 'DELETE' });
+                    }
+
+                    alert('✅ 완전 초기화가 완료되었습니다.\n\n페이지를 새로고침합니다.');
+
+                    // 페이지 새로고침
+                    window.location.reload();
+
+                } catch (e) {
+                    console.error('완전 초기화 실패:', e);
+                    alert('⚠️ 초기화 중 오류가 발생했습니다.\n일부 데이터가 남아있을 수 있습니다.');
+                }
+            }
+
+            window.addEventListener('load', () => {
+                initFiscalYearSelect();
+                loadNotice(); // [v2.2.0] 공지사항 로드
+                if (SERVER_CONFIG.useServer) syncServer();
+            });
+            renderAggregatedTable();
+
+            // 시간 옵션 생성 (v1.7.2 복구)
+            function populateTimeOptions() {
+                const workTimeSelect = document.getElementById('wWorkTime');
+                const endTimeSelect = document.getElementById('wEndTime');
+                if (!workTimeSelect || !endTimeSelect) return;
+                for (let hour = 0; hour < 24; hour++) {
+                    for (let minute = 0; minute < 60; minute += 30) {
+                        const timeValue = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                        const option1 = document.createElement('option');
+                        option1.value = timeValue; option1.textContent = timeValue;
+                        workTimeSelect.appendChild(option1);
+                        const option2 = document.createElement('option');
+                        option2.value = timeValue; option2.textContent = timeValue;
+                        endTimeSelect.appendChild(option2);
+                    }
+                }
+            }
+            populateTimeOptions();
+
+            // [v1.8.9] 소리 알림 토글 로직
+            function updateSoundUI() {
+                const enabled = AttendanceDB.getSoundEnabled();
+                const btn = document.getElementById('soundToggleBtn');
+                const text = document.getElementById('soundStatusText');
+                if (!btn) return;
+
+                if (enabled) {
+                    btn.classList.replace('btn-secondary', 'btn-primary');
+                    btn.innerHTML = `<i data-lucide="volume-2"></i> <span>소리 켜짐</span>`;
+                    if (text) {
+                        text.innerText = '알림 소리가 활성화되어 있습니다.';
+                        text.style.color = 'var(--primary)';
+                    }
+                } else {
+                    btn.classList.replace('btn-primary', 'btn-secondary');
+                    btn.innerHTML = `<i data-lucide="volume-x"></i> <span>소리 꺼짐</span>`;
+                    if (text) {
+                        text.innerText = '알림 소리가 무음으로 설정되었습니다.';
+                        text.style.color = 'var(--text-muted)';
+                    }
+                }
+                lucide.createIcons();
+            }
+
+            function toggleSoundSetting() {
+                const current = AttendanceDB.getSoundEnabled();
+                AttendanceDB.saveSoundEnabled(!current);
+                updateSoundUI();
+                if (!current) {
+                    AudioUtil.playSuccess(); // 켤 때만 확인용 소리 재생
+                }
+            }
+            // [v2.0.0] 매뉴얼 아카이빙 실행
+            async function confirmManualArchive(e) {
+                if (!confirm('현재 저장된 데이터를 백업하고 "회기 아카이빙"을 진행하시겠습니까?\n\n[작업 내용]\n1. 전체 출근기록 엑셀 다운로드\n2. 로컬 저장소 초기화\n3. 중요 설정 및 명단 유지')) return;
+
+                const btn = e ? e.target.closest('button') : null;
+                try {
+                    if (btn) btn.innerText = '백업 및 초기화 진행 중...';
+
+                    await AutoBackupSystem.performArchive();
+                    alert('아카이빙이 완료되었습니다.\n앱이 최적화되었습니다.');
+                    location.reload();
+                } catch (err) {
+                    console.error(err);
+                    alert('아카이빙 중 오류가 발생했습니다.');
+                    if (btn) btn.innerText = '데이터 백업 및 앱 최적화 (Archive)';
+                }
+            }
+
+            // [v2.0.0] 시작 시점 회기 변경 체크 및 UI 업데이트
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    // 1. 회기 변경 감지
+                    const check = AutoBackupSystem.checkSeasonChange();
+                    if (check) {
+                        if (confirm(check.message)) {
+                            AutoBackupSystem.performArchive().then(() => {
+                                alert('아카이빙 및 최적화가 완료되었습니다.');
+                                location.reload();
+                            });
+                        }
+                    }
+
+                    // 2. 설정 탭의 현재 회기 정보 표시
+                    const infoEl = document.getElementById('currentFiscalInfo');
+                    if (infoEl) {
+                        const storedYear = localStorage.getItem('current_fiscal_year');
+                        const displayYear = storedYear ? storedYear : FiscalYearUtil.getCurrentYear();
+                        infoEl.innerText = displayYear + '년도 (진행 중)';
+                        infoEl.style.color = 'var(--primary)';
+                    }
+                }, 1000);
+            });
+        </script>
+    </div> <!-- End of #adminContent -->
+    <div id="printSection" class="print-only"></div>
+</body>
+
+</html>
