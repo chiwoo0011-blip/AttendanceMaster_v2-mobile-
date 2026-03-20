@@ -1141,7 +1141,7 @@ window.openHistorySheet = function() {
         months.forEach(m => {
             const arr = grouped[m];
             const [y, mo] = m.split('-');
-            const totalDays = arr.reduce((sum, r) => sum + (r.workDays ? r.workDays.length : 0), 0);
+            const totalDays = arr.reduce((sum, r) => sum + (r.workDays ? r.workDays.length : (r.date ? 1 : 0)), 0);
             
             html += `
                 <div class="month-card" onclick="toggleMiniCal('${m}', '${workerName}')">
