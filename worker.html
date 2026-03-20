@@ -221,14 +221,23 @@
                 </div>
             </div>
 
+            <!-- 마감일 배너 영역 -->
+            <div id="deadlineBannerArea" style="display: none; margin-top: 1rem;"></div>
+
             <!-- 근무형태 카드 (공통 영역) -->
             <div id="workerInfoArea"></div>
 
-            <!-- 출근 입력 버튼 -->
-            <button class="btn btn-primary" id="toggleAttendanceBtn" onclick="toggleAttendanceSection()"
-                style="width: 100%; margin-top: 1.5rem; height: 55px; font-size: 1.1rem; font-weight: 800; display: none;">
-                <i data-lucide="calendar-plus"></i> 출근 입력하기
-            </button>
+            <!-- 출근 입력 및 내 기록 버튼 -->
+            <div id="workerActionButtons" style="display: none; gap: 0.5rem; margin-top: 1.5rem;">
+                <button class="btn btn-primary" id="toggleAttendanceBtn" onclick="toggleAttendanceSection()"
+                    style="flex: 1; height: 55px; font-size: 1.05rem; font-weight: 800;">
+                    <i data-lucide="calendar-plus"></i> 출근 등록
+                </button>
+                <button class="btn btn-secondary" onclick="openHistorySheet()"
+                    style="flex: 1; height: 55px; font-size: 1.05rem; font-weight: 800; color: var(--secondary); border: 1px solid var(--secondary);">
+                    <i data-lucide="history"></i> 내 기록 보기
+                </button>
+            </div>
 
             <!-- 출근 입력 섹션 (기본 숨김) -->
             <div id="attendanceSection" style="display: none;">
@@ -289,6 +298,25 @@
                 </button>
             </div>
         </main>
+    </div>
+
+    <!-- DETAIL BOTTOM SHEET: 월별 상세 기록 -->
+    <div class="detail-panel" id="historyPanel" onclick="if(event.target === this) this.classList.remove('open')">
+        <div class="detail-sheet">
+            <div class="sheet-drag"></div>
+            <div class="sheet-title">내 출근 기록</div>
+            <div class="sheet-sub" id="historySubTitle">최근 제출 이력</div>
+            <div id="historyContentArea" style="min-height: 200px;">
+                <!-- 동적으로 월별 리스트나 미니 캘린더가 렌더링됨 -->
+            </div>
+            <button onclick="document.getElementById('historyPanel').classList.remove('open')" style="width: 100%; margin-top: 1rem; padding: 0.85rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 0.88rem; font-weight: 700; cursor: pointer;">닫기</button>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="systemToast">
+        <i data-lucide="check-circle" style="width:16px; color: #4ade80;"></i>
+        <span id="toastMsg"></span>
     </div>
 
     <!-- Firebase SDK for FCM -->
@@ -399,7 +427,8 @@
             document.getElementById('workerName').value = '';
             document.getElementById('workerPhoneBack').value = '';
             document.getElementById('workerInfoArea').innerHTML = '';
-            document.getElementById('toggleAttendanceBtn').style.display = 'none';
+            document.getElementById('workerActionButtons').style.display = 'none';
+            document.getElementById('deadlineBannerArea').style.display = 'none';
             document.getElementById('personalNotificationsContainer').style.display = 'none';
             document.getElementById('rememberMe').checked = false;
             currentWorkerRule = null;
@@ -436,7 +465,7 @@
 
             if (section.style.display === 'none') {
                 section.style.display = 'block';
-                btn.innerHTML = '<i data-lucide="chevron-up"></i> 출근 입력 닫기';
+                btn.innerHTML = '<i data-lucide="chevron-up"></i> 닫기';
                 lucide.createIcons();
                 setTimeout(() => {
                     resizeCanvas();
@@ -444,7 +473,7 @@
                 }, 100);
             } else {
                 section.style.display = 'none';
-                btn.innerHTML = '<i data-lucide="calendar-plus"></i> 출근 입력하기';
+                btn.innerHTML = '<i data-lucide="calendar-plus"></i> 출근 등록';
                 lucide.createIcons();
             }
         }
@@ -550,7 +579,10 @@
                     </div>
                 `;
                 lucide.createIcons();
-                document.getElementById('toggleAttendanceBtn').style.display = 'block';
+                document.getElementById('workerActionButtons').style.display = 'flex';
+                
+                // 마감일 알림 배너 렌더링
+                renderDeadlineBanner(worker.name);
 
                 // FCM 토큰이 있으면 이 직원 이름으로 서버에 저장
                 if (window.__fcmToken) {

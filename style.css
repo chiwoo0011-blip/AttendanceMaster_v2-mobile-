@@ -843,3 +843,93 @@ tr:hover {
         white-space: nowrap;
     }
 }
+
+/* ===== DEADLINE BANNER ===== */
+.deadline-banner { border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1.2rem; display: flex; align-items: flex-start; gap: 0.75rem; position: relative; overflow: hidden; }
+.deadline-banner::before { content: ''; position: absolute; inset: 0; opacity: 0.12; border-radius: inherit; }
+.deadline-urgent { background: rgba(239,68,68,0.15); border: 1.5px solid rgba(239,68,68,0.4); }
+.deadline-urgent::before { background: var(--danger); }
+.deadline-warn { background: rgba(245,158,11,0.12); border: 1.5px solid rgba(245,158,11,0.35); }
+.deadline-warn::before { background: var(--warning); }
+.deadline-ok { background: rgba(34,197,94,0.1); border: 1.5px solid rgba(34,197,94,0.3); }
+.deadline-ok::before { background: var(--success); }
+.deadline-icon { font-size: 1.4rem; flex-shrink: 0; }
+.deadline-text { flex: 1; }
+.deadline-text strong { display: block; font-size: 0.92rem; font-weight: 800; margin-bottom: 0.2rem; }
+.deadline-text span { font-size: 0.8rem; color: var(--text-muted); }
+.deadline-badge { padding: 0.3rem 0.65rem; border-radius: 20px; font-size: 0.72rem; font-weight: 800; flex-shrink: 0; align-self: center; }
+.badge-red { background: var(--danger); color: white; animation: pulse 1.5s infinite; }
+.badge-yellow { background: var(--warning); color: #1a1a1a; }
+.badge-green { background: var(--success); color: white; }
+@keyframes pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { opacity: 0.85; box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
+
+/* ===== MONTH HISTORY CARD ===== */
+.month-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; transition: all 0.2s; }
+.month-card:hover { background: var(--surface-hover); border-color: var(--primary); transform: translateY(-1px); }
+.month-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+.month-card .info { flex: 1; }
+.month-card .info .month-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+.month-card .info .days-count { font-size: 1.1rem; font-weight: 800; color: var(--text); }
+.month-card .info .days-count span { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+.month-chip { font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 20px; flex-shrink: 0; }
+.chip-done { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.chip-pending { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+
+/* ===== CALENDAR MINI (in history detail) ===== */
+.mini-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 0.8rem 0; }
+.mini-cal-head { text-align: center; font-size: 0.65rem; color: var(--text-muted); font-weight: 700; padding-bottom: 4px; }
+.mini-cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.04); }
+.mini-cal-day.worked { background: rgba(var(--primary-rgb),0.3); color: #c7d2fe; border: 1px solid rgba(var(--primary-rgb),0.4); }
+.mini-cal-day.off { opacity: 0.35; }
+.mini-cal-day.sun { color: #ff5f5f; }
+.mini-cal-day.sat { color: #5fafff; }
+.mini-cal-day.holiday { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+/* ===== STAT SUMMARY ROW ===== */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 0.8rem 0; }
+.stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem 0.5rem; text-align: center; }
+.stat-box .val { font-size: 1.4rem; font-weight: 800; color: var(--primary); }
+.stat-box .lbl { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ===== REALTIME STATUS ===== */
+.rt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.rt-title { font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: livePulse 1.5s infinite; }
+@keyframes livePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
+.rt-refresh-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.78rem; cursor: pointer; display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s; }
+.rt-refresh-btn:hover { border-color: var(--primary); color: var(--primary); }
+.rt-progress-ring { display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 2rem 0 1.5rem; }
+.ring-wrap { position: relative; width: 140px; height: 140px; }
+.ring-wrap svg { transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--surface-hover); stroke-width: 10; }
+.ring-val { fill: none; stroke: url(#ringGrad); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+.ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring-center .big { font-size: 2rem; font-weight: 800; color: var(--primary); line-height: 1; }
+.ring-center .small { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.ring-desc { margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.submitted-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-top: 0.5rem; }
+.worker-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; font-weight: 600; }
+.worker-chip .avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800; flex-shrink: 0; }
+.avatar-submitted { background: rgba(var(--primary-rgb),0.2); color: #818cf8; }
+.avatar-pending { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.worker-chip .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worker-chip .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: var(--success); }
+.dot-red { background: var(--danger); }
+
+/* Section divider */
+.sec-title { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 1.5rem 0 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+.sec-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Detail overlay */
+.detail-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: flex-end; justify-content: center; }
+.detail-panel.open { display: flex; }
+.detail-sheet { width: 100%; max-width: 480px; background: var(--surface); border-radius: 20px 20px 0 0; padding: 1.5rem 1.2rem 2rem; max-height: 80vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+@keyframes slideUp { from { transform: translateY(80px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sheet-drag { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 1.2rem; }
+.sheet-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.4rem; }
+.sheet-sub { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+/* Toast */
+.toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(100px); background: #1e293b; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.2rem; font-size: 0.85rem; font-weight: 600; z-index: 999; box-shadow: 0 8px 32px rgba(0,0,0,0.4); transition: transform 0.3s ease; white-space: nowrap; display: flex; align-items: center; gap: 0.5rem; }
+.toast.show { transform: translateX(-50%) translateY(0); }

@@ -374,6 +374,7 @@
             </header>
 
             <nav class="nav-tabs fade-in">
+                <div class="nav-link" onclick="showSection('realtimeView', this)">실시간 현황</div>
                 <div class="nav-link active" onclick="showSection('aggView', this); markAsReadToday()">
                     월간 집계 <span id="navTodayBadge" class="badge badge-success"
                         style="display:none; margin-left:6px; font-size:0.7rem; vertical-align:middle;">0</span>
@@ -495,6 +496,51 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Realtime Status Section -->
+            <div id="realtimeView" class="view-section fade-in">
+                <div class="glass" style="padding: 1.5rem 1rem; margin-bottom: 1.2rem;">
+                    <div class="rt-header">
+                        <div class="rt-title">
+                            <div class="live-dot"></div>
+                            실시간 이번 달 제출 현황
+                        </div>
+                        <button class="rt-refresh-btn" onclick="renderRealtimeStatus()">
+                            <i data-lucide="refresh-cw" style="width: 13px;"></i> 새로고침
+                        </button>
+                    </div>
+                    <div class="rt-progress-ring">
+                        <div class="ring-wrap">
+                            <svg viewBox="0 0 140 140" width="140" height="140">
+                                <defs>
+                                    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#6366f1"/>
+                                        <stop offset="100%" stop-color="#a855f7"/>
+                                    </linearGradient>
+                                </defs>
+                                <circle class="ring-bg" cx="70" cy="70" r="58"/>
+                                <circle class="ring-val" id="rtRingCircle" cx="70" cy="70" r="58" stroke-dasharray="364.4" stroke-dashoffset="364.4"/>
+                            </svg>
+                            <div class="ring-center">
+                                <div class="big" id="rtRingNum">0</div>
+                                <div class="small" id="rtRingTotal">/ 0명 제출</div>
+                            </div>
+                        </div>
+                        <div class="ring-desc" id="rtRingDesc">집계 중...</div>
+                    </div>
+
+                    <button class="alert-btn" id="rtAlertBtn" onclick="notifyUnsubmittedApp()" style="display:none; margin-top:1.5rem;">
+                        <i data-lucide="send" style="width: 16px;"></i> 미제출자 전체 대상 알림 발송
+                    </button>
+                </div>
+
+                <div class="sec-title">제출 완료 <span style="color: #4ade80; letter-spacing:0; text-transform: none;" id="rtDoneCount">(0명)</span></div>
+                <div class="submitted-grid" id="rtDoneGrid"></div>
+
+                <div class="sec-title">미제출 <span style="color: #fca5a5; letter-spacing:0; text-transform: none;" id="rtPendingCount">(0명)</span></div>
+                <div class="submitted-grid" id="rtPendingGrid" style="margin-bottom: 2rem;"></div>
+            </div>
+
 
             <!-- Annual Summary Section -->
             <div id="annualView" class="view-section fade-in">

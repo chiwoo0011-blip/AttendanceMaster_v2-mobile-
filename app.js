@@ -1038,3 +1038,307 @@ var AutoBackupSystem = {
 function isMobile() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
+
+// ==========================================
+// V2 NEW FEATURES (Deadline, History, Realtime)
+// ==========================================
+
+function showToast(msg) {
+    const toast = document.getElementById('systemToast');
+    if (!toast) return;
+    document.getElementById('toastMsg').innerText = msg;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// 1. Deadline Banner Logic (Worker)
+window.renderDeadlineBanner = function(workerName) {
+    const bannerArea = document.getElementById('deadlineBannerArea');
+    if (!bannerArea) return;
+    
+    // Get current month
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyyMm = `${year}-${month}`;
+    
+    // Check if submitted
+    const records = AttendanceDB.getAll();
+    const submitted = records.some(r => r.name === workerName && r.date.startsWith(yyyyMm));
+
+    let bannerHtml = '';
+    
+    if (submitted) {
+        bannerHtml = `
+            <div class="deadline-banner deadline-ok fade-in">
+                <div class="deadline-icon">✅</div>
+                <div class="deadline-text">
+                    <strong>이번 달 출근부 제출 완료</strong>
+                    <span>정상적으로 접수되었습니다.</span>
+                </div>
+            </div>`;
+    } else {
+        const nextMonth = new Date(year, now.getMonth() + 1, 5);
+        const diffTime = nextMonth - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 5) {
+            bannerHtml = `
+                <div class="deadline-banner deadline-urgent fade-in">
+                    <div class="deadline-icon">🚨</div>
+                    <div class="deadline-text">
+                        <strong>제출 마감 임박!</strong>
+                        <span>이번 달 출근부를 서둘러 제출해주세요.</span>
+                    </div>
+                    <div class="deadline-badge badge-red">D-${diffDays}</div>
+                </div>`;
+        } else {
+            bannerHtml = `
+                <div class="deadline-banner deadline-warn fade-in">
+                    <div class="deadline-icon">⚠️</div>
+                    <div class="deadline-text">
+                        <strong>출근부 미제출 상태</strong>
+                        <span>잊지 말고 제출을 완료해주세요.</span>
+                    </div>
+                    <div class="deadline-badge badge-yellow">D-${diffDays}</div>
+                </div>`;
+        }
+    }
+    
+    bannerArea.innerHTML = bannerHtml;
+    bannerArea.style.display = 'block';
+};
+
+// 2. My Attendance History (Worker)
+window.openHistorySheet = function() {
+    const panel = document.getElementById('historyPanel');
+    const content = document.getElementById('historyContentArea');
+    const workerName = document.getElementById('workerName').value;
+    
+    if (!workerName) {
+        showToast('먼저 로그인해주세요.');
+        return;
+    }
+    
+    const records = AttendanceDB.getAll().filter(r => r.name === workerName);
+    
+    // Group records by month
+    const grouped = {};
+    records.forEach(r => {
+        const month = r.date.substring(0, 7); // YYYY-MM
+        if (!grouped[month]) grouped[month] = [];
+        grouped[month].push(r);
+    });
+    
+    const months = Object.keys(grouped).sort((a,b) => b.localeCompare(a));
+    
+    if (months.length === 0) {
+        content.innerHTML = '<div style="text-align:center; padding: 2rem 0; color:var(--text-muted);">제출 기록이 없습니다.</div>';
+    } else {
+        let html = '';
+        months.forEach(m => {
+            const arr = grouped[m];
+            const [y, mo] = m.split('-');
+            const totalDays = arr.reduce((sum, r) => sum + (r.workDays ? r.workDays.length : 0), 0);
+            
+            html += `
+                <div class="month-card" onclick="toggleMiniCal('${m}', '${workerName}')">
+                    <div class="month-icon">📅</div>
+                    <div class="info">
+                        <div class="month-label">${y}년 ${parseInt(mo)}월</div>
+                        <div class="days-count">${totalDays}<span>일 출근</span></div>
+                    </div>
+                    <div class="month-chip chip-done">제출 완료</div>
+                </div>
+                <div id="miniCal_${m}" style="display:none; margin-bottom: 1rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px;"></div>
+            `;
+        });
+        content.innerHTML = html;
+    }
+    
+    panel.classList.add('open');
+};
+
+window.toggleMiniCal = function(yyyyMm, workerName) {
+    const el = document.getElementById('miniCal_' + yyyyMm);
+    if (el.style.display === 'block') {
+        el.style.display = 'none';
+        return;
+    }
+    
+    // Generate Mini Calendar
+    const [year, month] = yyyyMm.split('-');
+    const records = AttendanceDB.getAll().filter(r => r.name === workerName && r.date.startsWith(yyyyMm));
+    
+    // Collect all worked days
+    const workedDays = new Set();
+    records.forEach(r => {
+        if (r.workDays) {
+            r.workDays.forEach(d => workedDays.add(d));
+        } else if (r.date) {
+            workedDays.add(parseInt(r.date.split('-')[2]));
+        }
+    });
+    
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDayStr = `${yyyyMm}-01`;
+    const firstDayIndex = new Date(firstDayStr).getDay();
+    
+    let calHtml = '<div class="mini-cal"><div class="mini-cal-head">일</div><div class="mini-cal-head">월</div><div class="mini-cal-head">화</div><div class="mini-cal-head">수</div><div class="mini-cal-head">목</div><div class="mini-cal-head">금</div><div class="mini-cal-head">토</div>';
+    
+    for (let i = 0; i < firstDayIndex; i++) {
+        calHtml += '<div class="mini-cal-day off"></div>';
+    }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const currentStr = `${yyyyMm}-${String(d).padStart(2, '0')}`;
+        const isHoliday = HolidayUtil.isHoliday(currentStr);
+        const isWorked = workedDays.has(d);
+        const dayIdx = new Date(currentStr).getDay();
+        
+        let classes = 'mini-cal-day';
+        if (isWorked) classes += ' worked';
+        else if (isHoliday) classes += ' holiday';
+        else if (dayIdx === 0) classes += ' sun';
+        else if (dayIdx === 6) classes += ' sat';
+        else classes += ' off';
+        
+        calHtml += `<div class="${classes}">${d}</div>`;
+    }
+    calHtml += '</div>';
+    
+    el.innerHTML = calHtml;
+    el.style.display = 'block';
+};
+
+// 3. Realtime Status (Admin)
+window.renderRealtimeStatus = async function() {
+    const ringCircle = document.getElementById('rtRingCircle');
+    const ringNum = document.getElementById('rtRingNum');
+    const ringTotal = document.getElementById('rtRingTotal');
+    const ringDesc = document.getElementById('rtRingDesc');
+    const doneGrid = document.getElementById('rtDoneGrid');
+    const pendingGrid = document.getElementById('rtPendingGrid');
+    const doneCount = document.getElementById('rtDoneCount');
+    const pendingCount = document.getElementById('rtPendingCount');
+    const alertBtn = document.getElementById('rtAlertBtn');
+    
+    if (!ringCircle) return; // Only in admin
+    
+    const workers = AttendanceDB.getWorkers();
+    
+    const now = new Date();
+    const yyyyMm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    const records = AttendanceDB.getAll().filter(r => r.date.startsWith(yyyyMm));
+    const submittedNames = new Set(records.map(r => r.name));
+    
+    const submittedWorkers = [];
+    const pendingWorkers = [];
+    
+    workers.forEach(w => {
+        if (submittedNames.has(w.name)) submittedWorkers.push(w);
+        else pendingWorkers.push(w);
+    });
+    
+    const total = workers.length;
+    const subm = submittedWorkers.length;
+    const percent = total > 0 ? Math.round((subm / total) * 100) : 0;
+    
+    // Update Ring
+    const circumference = 364.4; // 2 * pi * 58
+    const offset = circumference - (percent / 100) * circumference;
+    ringCircle.style.strokeDashoffset = offset;
+    
+    ringNum.innerText = percent + '%';
+    ringTotal.innerText = '/ ' + total + '명 제출';
+    ringDesc.innerText = '전체 인원의 ' + percent + '% 제출 완료';
+    
+    doneCount.innerText = '(' + subm + '명)';
+    pendingCount.innerText = '(' + (total - subm) + '명)';
+    
+    if (total - subm > 0) {
+        alertBtn.style.display = 'flex';
+    } else {
+        alertBtn.style.display = 'none';
+    }
+    
+    // Render Grids
+    doneGrid.innerHTML = submittedWorkers.map(w => `
+        <div class="worker-chip">
+            <div class="avatar avatar-submitted">${w.name.charAt(0)}</div>
+            <div class="name">${w.name}</div>
+            <div class="status-dot dot-green"></div>
+        </div>
+    `).join('');
+    
+    pendingGrid.innerHTML = pendingWorkers.map(w => `
+        <div class="worker-chip">
+            <div class="avatar avatar-pending">${w.name.charAt(0)}</div>
+            <div class="name">${w.name}</div>
+            <div class="status-dot dot-red"></div>
+        </div>
+    `).join('');
+};
+
+window.notifyUnsubmittedApp = async function() {
+    const btn = document.getElementById('rtAlertBtn');
+    if (!btn || btn.disabled) return;
+    
+    const now = new Date();
+    const yyyyMm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    const workers = AttendanceDB.getWorkers();
+    const records = AttendanceDB.getAll().filter(r => r.date.startsWith(yyyyMm));
+    const submittedNames = new Set(records.map(r => r.name));
+    
+    const pendingWorkers = workers.filter(w => !submittedNames.has(w.name));
+    
+    if (pendingWorkers.length === 0) {
+        alert("알림을 보낼 미제출자가 없습니다.");
+        return;
+    }
+    
+    if (!confirm('미제출한 ' + pendingWorkers.length + '명에게 제출 알림을 발송하시겠습니까?')) return;
+    
+    btn.disabled = true;
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="spin-animation" data-lucide="loader-2" style="width:16px;"></i> 전송 중...';
+    lucide.createIcons();
+    
+    let successCount = 0;
+    
+    for (const w of pendingWorkers) {
+        const tokenData = await AttendanceDB.getFCMToken(w.name);
+        if (tokenData && tokenData.token) {
+            await AttendanceDB.saveNotification(w.name, {
+                title: "출근부 제출 마감 임박",
+                body: "이번 달 출근부를 서둘러 제출해주세요.",
+                type: "warning"
+            });
+            successCount++;
+        }
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+    lucide.createIcons();
+    
+    alert(successCount + '명에게 알림 발송을 요청했습니다.\\n(FCM 토큰이 없는 사용자는 제외됨)');
+};
+
+// DOMContentLoaded observer to initialize realtime status when switching tabs
+document.addEventListener('DOMContentLoaded', () => {
+    // If we're in admin.html, override the showSection to render Realtime if needed
+    if (typeof showSection === 'function') {
+        const origShowSection = showSection;
+        window.showSection = function(id, el) {
+            origShowSection(id, el);
+            if (id === 'realtimeView') {
+                renderRealtimeStatus();
+            }
+        };
+    }
+});
